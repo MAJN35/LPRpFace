@@ -1,0 +1,8 @@
+# Python deps of the DeepStream app (Python 3.8 in the DeepStream 6.3 image). pyds is installed separately from the
+# NVIDIA-AI-IOT release wheel (checksum-verified in the Dockerfile). Lock: deepstream/requirements.lock.
+numpy==1.24.4                    # last release for Python 3.8
+opencv-python-headless==4.10.0.84
+PyYAML==6.0.2
+confluent-kafka==2.6.1           # M5 producer
+jsonschema==4.23.0               # event schema validation
+pytest==8.3.5
