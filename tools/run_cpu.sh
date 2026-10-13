@@ -5,5 +5,5 @@
 set -euo pipefail
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 image="${LPR_TOOLS_IMAGE:-lpr-tools:cpu}"
-exec docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+exec docker run --rm -i --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
   -v "$repo:/work" -w /work "$image" "$@"

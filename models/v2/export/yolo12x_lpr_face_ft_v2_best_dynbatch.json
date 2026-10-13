@@ -1,0 +1,31 @@
+{
+  "output": "yolo12x_lpr_face_ft_v2_best_dynbatch.onnx",
+  "output_sha256": "48095325b80a822c2f832897e324f6383516ef8026ee6709100bc570c291bf2d",
+  "source_pt": "yolo12x_lpr_face_ft_v2_best.pt",
+  "source_pt_sha256": "fbaf11408e5be67ffdd3423d439ef4e239c28bd435387f9692a1fb4ee3048ef8",
+  "batch": "dynamic",
+  "input_shape": [
+    "batch",
+    3,
+    960,
+    960
+  ],
+  "output_shape": [
+    "batch",
+    52,
+    18900
+  ],
+  "opset": 17,
+  "command": "tools/export_onnx.py models/v2 --dynamic-batch",
+  "method": "YOLO(pt).export(format='onnx', imgsz=960, opset=17, simplify=True, dynamic=False, batch=1, half=False, nms=False, device='cpu') with torch.onnx.export forced to dynamo=False and dynamic_axes={images:{0:batch}, output0:{0:batch}}",
+  "versions": {
+    "python": "3.10.22",
+    "torch": "2.11.0+cpu",
+    "ultralytics": "8.3.141",
+    "onnx": "1.17.0",
+    "onnxslim": "0.1.53",
+    "machine": "aarch64"
+  },
+  "export_seconds": 131.6,
+  "date_utc": "2026-10-13T02:54:32Z"
+}

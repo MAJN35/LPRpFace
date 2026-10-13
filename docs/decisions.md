@@ -103,3 +103,20 @@ Format: date, decision, reason, alternatives, source.
 - **Note for M2:** `Model.predict` defaults to `rect=True` (minimal-rectangle padding), so the `.pt` parity run must
   use `rect=False` to see the same 960×960 input as the ONNX/TensorRT path.
 - **Source:** Ultralytics 8.3.141 `utils/ops.py` (`non_max_suppression`, `scale_boxes`), `data/augment.py` (`LetterBox`).
+
+## 2026-10-13: Image downloads on this network (M1)
+
+- **Finding:** Docker's CDN (CloudFront) answers 403 to requests leaving through the Xray `directSocks` inbound
+  (127.0.0.1:57556, routed to the `direct` outbound), which the daemon used as its proxy; nvcr.io answers 403 to
+  direct requests. Through the VLESS tunnel inbound (127.0.0.1:57531) Docker Hub blobs download (200, 3.4 MB/s)
+  and nvcr.io answers 401 (normal auth challenge). Download speed is the same direct and tunnelled (~4–5 MB/s).
+- **Decision:** The user switched the daemon proxy to `http://127.0.0.1:57531` (2026-10-13 05:36 +0330); pulls work
+  (`docker pull python:3.10.22-slim-bookworm@sha256:5be5…` → up to date, RepoDigest recorded).
+  `tools/fetch_image.py` stays as a fallback: it downloads a digest-pinned Docker Hub image directly, verifies the
+  manifest, config and every layer by SHA-256 and `docker load`s it; `tools/build_cpu_image.sh` accepts the plain
+  tag only when its image ID equals the verified config digest.
+- **Lock file:** `pip-compile --generate-hashes` downloads every platform's wheel of every pin to hash it (1.5 GB in
+  49 min without finishing). Replaced by `tools/docker/make_lock.py`: downloads only the wheels for this platform,
+  installs them offline to prove they resolve, and pins each with version + SHA-256. The lock is therefore
+  platform-specific (linux/aarch64, CPython 3.10); regenerate it with `tools/build_cpu_image.sh --lock` on x86.
+- **Source:** curl measurements on the device; Xray `~/config.json` (structure only, secrets not recorded).

@@ -93,8 +93,25 @@ def main(argv=None) -> int:
     if sha256(pt) != pt_sha:
         print(f"FAIL: {pt} changed during export")
         return EXIT_SUMS
-    m = onnx.load(str(out), load_external_data=False)
+    m = onnx.load(str(out))
     dims = lambda vi: [d.dim_param or d.dim_value for d in vi.type.tensor_type.shape.dim]  # noqa: E731
+    # The batch-only dynamic export leaves output0 dims 1 and 2 symbolic after slimming. Pin them to the sizes a
+    # real run produces (52, 18900) so TensorRT/nvinfer see a static per-image output; nodes and weights unchanged.
+    out_dims = m.graph.output[0].type.tensor_type.shape.dim
+    if any(d.dim_param for d in list(out_dims)[1:]):
+        import numpy as np
+        import onnxruntime as ort
+
+        n = 1 if a.dynamic_batch else a.batch
+        sess = ort.InferenceSession(str(out), providers=["CPUExecutionProvider"])
+        shape = sess.run(None, {"images": np.zeros((n, 3, IMGSZ, IMGSZ), np.float32)})[0].shape
+        del sess
+        for d, size in list(zip(out_dims, shape))[1:]:
+            d.ClearField("dim_param")
+            d.dim_value = size
+        onnx.checker.check_model(m)
+        onnx.save(m, str(out))
+        print(f"pinned output0 dims 1..2 to {list(shape[1:])} (measured with onnxruntime)")
     info = {
         "output": out.name,
         "output_sha256": sha256(out),

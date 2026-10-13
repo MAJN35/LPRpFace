@@ -75,20 +75,27 @@ def main(argv=None) -> int:
         lbs.append(lb)
     x = np.stack(tensors)
 
-    so = ort.SessionOptions()
-    if a.threads:
-        so.intra_op_num_threads = a.threads
-    ref = ort.InferenceSession(str(a.ref), so, providers=["CPUExecutionProvider"])
-    cand = ort.InferenceSession(str(a.cand), so, providers=["CPUExecutionProvider"])
+    def session(path):
+        # One model in memory at a time and no CPU arena: on the 8 GB Jetson the arena's peak plus two 240 MB
+        # models runs out of memory at batch >= 2.
+        so = ort.SessionOptions()
+        so.enable_cpu_mem_arena = False
+        if a.threads:
+            so.intra_op_num_threads = a.threads
+        return ort.InferenceSession(str(path), so, providers=["CPUExecutionProvider"])
+
+    ref = session(a.ref)
+    ref_shape = ref.get_inputs()[0].shape
+    ref_out = np.concatenate([ref.run(None, {"images": x[i:i + 1]})[0] for i in range(len(x))])
+    del ref
+    ref_dets = decode(ref_out, lbs, conf=0.25, iou=0.5)
+    n_ref = sum(len(d) for d in ref_dets)
+    cand = session(a.cand)
     cin = cand.get_inputs()[0]
     fixed = cin.shape[0] if isinstance(cin.shape[0], int) else None
     sizes = [fixed] if fixed else a.batch_sizes
-    print(f"ref {a.ref.name} input {ref.get_inputs()[0].shape}; cand {a.cand.name} input {cin.shape}; "
-          f"{len(files)} images; batch sizes {sizes}")
-
-    ref_out = np.concatenate([ref.run(None, {"images": x[i:i + 1]})[0] for i in range(len(x))])
-    ref_dets = decode(ref_out, lbs, conf=0.25, iou=0.5)
-    n_ref = sum(len(d) for d in ref_dets)
+    print(f"ref {a.ref.name} input {ref_shape}; cand {a.cand.name} input {cin.shape}; "
+          f"{len(files)} images, {n_ref} ref detections; batch sizes {sizes}", flush=True)
 
     report, ok = {"images": len(files), "ref_detections": n_ref, "sizes": {}}, True
     for bs in sizes:
@@ -113,9 +120,9 @@ def main(argv=None) -> int:
                                "unmatched_cand": uc, "images_with_differences": bad_imgs, "identical": same}
         print(f"batch {bs}: max |Δ output| {max_abs:.3g}; detections matched {m}/{n_ref}, "
               f"unmatched ref {ur}, unmatched cand {uc}, images with differences {bad_imgs} -> "
-              f"{'SAME' if same else 'DIFFERENT'}")
-    if a.json_out:
-        a.json_out.write_text(json.dumps(report, indent=2) + "\n")
+              f"{'SAME' if same else 'DIFFERENT'}", flush=True)
+        if a.json_out:
+            a.json_out.write_text(json.dumps(report, indent=2) + "\n")
     print("RESULT:", "OK" if ok else "FAIL")
     return 0 if ok else 1
 
