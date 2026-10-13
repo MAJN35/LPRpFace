@@ -27,7 +27,8 @@ log = logging.getLogger("lpr.worker")
 class ReaderWorker:
     def __init__(self, emitter, model: Dict[str, Any], crops_dir: str, dedup_s: float = 30.0,
                  vote_cfg: Optional[VoteConfig] = None, max_queue: int = 64, validate_events: bool = True,
-                 net_size: int = 960, emit_invalid: bool = False):
+                 net_size: int = 960, emit_invalid: bool = False, face_emitter=None, face_min_frames: int = 2,
+                 face_min_px: float = 40.0):
         self.emitter = emitter
         self.model = model
         self.crops_dir = Path(crops_dir)
@@ -37,12 +38,21 @@ class ReaderWorker:
         self.validate_events = validate_events
         self.net_size = net_size
         self.emit_invalid = emit_invalid
+        # Face recognition: one snapshot per face track (largest frame), emitted to the face topic; the face
+        # service embeds it. Tracks shorter than face_min_frames or faces narrower than face_min_px are skipped.
+        self.face_emitter = face_emitter
+        self.face_min_frames = face_min_frames
+        self.face_min_px = face_min_px
+        self.face_tracks: Dict[tuple, Dict[str, Any]] = {}
+        # Crops belong to the backend's user, so the snapshot library can delete them (backend runs as uid 10001).
+        self.crops_uid = int(os.environ.get("LPR_CROPS_UID", "10001"))
+        self._own_tree()
         self.sources: Dict[int, Any] = {}           # mux pad index -> SourceBin
         self.osd: Dict[tuple, str] = {}             # (source id, track id) -> current Latin string
         self.image_results: Dict[str, Dict[str, Any]] = {}   # image path -> {"status", "events"}
         self.stats = {"frames": 0, "reads": 0, "events": 0, "dedup_suppressed": 0, "small_plates_skipped": 0,
                       "invalid_events": 0, "errors": 0,
-                      "dropped_implausible": 0}
+                      "dropped_implausible": 0, "face_events": 0, "faces_skipped": 0}
         self._last_expire = time.time()
         self._stop = threading.Event()
         self._t = threading.Thread(target=self._run, name="reader-worker", daemon=True)
@@ -92,8 +102,12 @@ class ReaderWorker:
                     self._frame(payload)
                 elif kind == "flush_source":
                     self._finalize([v for k, v in list(self.tracks.voters.items()) if k[0] == payload], pop=True)
+                    self._finalize_faces([k for k in self.face_tracks if k[0] == payload])
                 elif kind == "finish":
                     self._finalize(list(self.tracks.voters.values()), pop=True)
+                    self._finalize_faces(list(self.face_tracks))
+                    if self.face_emitter is not None:
+                        self.face_emitter.close()
                     return
                 if time.time() - self._last_expire > 0.25:
                     self._last_expire = time.time()
@@ -112,6 +126,8 @@ class ReaderWorker:
                 for d in item.dets]
         reads = read_frame(dets)
         self.stats["reads"] += len(reads)
+        if self.face_emitter is not None and item.faces:
+            self._faces(sb, item)
         if sb.src.is_image:
             self._image(sb, item, reads)
             return
@@ -138,6 +154,51 @@ class ReaderWorker:
         # last_seen is the frame's arrival time at the muxer (wall clock), so it compares with time.time().
         done = [v for v in self.tracks.voters.values() if v.last_seen is not None and now - v.last_seen >= timeout]
         self._finalize(done, pop=True)
+        self._finalize_faces([k for k, f in self.face_tracks.items() if now - f["last"] >= timeout])
+
+    # --- faces ---------------------------------------------------------------------------------------------------
+    def _faces(self, sb, item):
+        now = time.time()
+        for f in item.faces:
+            crop = item.face_crops.get(f["track_id"])
+            if sb.src.is_image:          # image job: every face at once (no tracker)
+                if crop is not None:
+                    self._emit_face(sb, dict(f, frame_size=item.frame_size, frames=1), crop, item.t,
+                                    Path(item.image_file).name if item.image_file else "")
+                continue
+            key = (item.source_index, f["track_id"])
+            tr = self.face_tracks.setdefault(key, {"frames": 0, "crop": None, "face": None, "t": item.t})
+            tr["frames"] += 1
+            tr["last"] = now
+            if crop is not None and f.get("crop_box"):
+                tr.update(crop=crop, face=dict(f, frame_size=item.frame_size), t=item.t)
+
+    def _finalize_faces(self, keys):
+        for key in keys:
+            tr = self.face_tracks.pop(key, None)
+            sb = self.sources.get(key[0])
+            if tr is None or sb is None or tr["crop"] is None:
+                continue
+            box = tr["face"]["box"]
+            if tr["frames"] < self.face_min_frames or box[2] - box[0] < self.face_min_px:
+                self.stats["faces_skipped"] += 1
+                continue
+            self._emit_face(sb, dict(tr["face"], frames=tr["frames"]), tr["crop"], tr["t"], None)
+
+    def _emit_face(self, sb, face, crop, t, image_file):
+        ev = events.from_face(face, sb.src, self.model, "", t, image_file)
+        rel = self._save_crop(crop, f"faces/{sb.src.id}", ev["event_id"], ev["timestamp"])
+        if rel is None:
+            return
+        ev["snapshot_path"] = rel
+        try:
+            events.validate_face(ev)
+        except Exception as e:  # noqa: BLE001
+            self.stats["invalid_events"] += 1
+            log.error("face event failed schema validation: %s", str(e)[:300])
+            return
+        self.stats["face_events"] += 1
+        self.face_emitter.emit(ev)
 
     def _finalize(self, voters, pop: bool):
         for v in voters:
@@ -206,10 +267,32 @@ class ReaderWorker:
 
         rel = Path(sid) / ts[:10] / f"{event_id}.jpg"
         out = self.crops_dir / rel
+        new_dirs = [d for d in reversed(out.parents) if self.crops_dir in d.parents and not d.exists()]
         out.parent.mkdir(parents=True, exist_ok=True)
         bgr = cv2.cvtColor(crop, cv2.COLOR_RGBA2BGR) if crop.ndim == 3 and crop.shape[2] == 4 else crop
         ok = cv2.imwrite(str(out), bgr, [cv2.IMWRITE_JPEG_QUALITY, 90])
+        for path in new_dirs + ([out] if ok else []):
+            self._own(path)
         return str(rel) if ok else None
+
+    def _own(self, path: Path) -> None:
+        try:
+            os.chown(path, self.crops_uid, self.crops_uid)
+        except OSError:          # not root (tests, dev runs): nothing to hand over
+            pass
+
+    def _own_tree(self) -> None:
+        if not self.crops_dir.is_dir() or os.geteuid() != 0:
+            return
+        self._own(self.crops_dir)
+        for root, dirs, files in os.walk(self.crops_dir):
+            for n in dirs + files:
+                p = Path(root) / n
+                try:
+                    if p.stat().st_uid != self.crops_uid:
+                        self._own(p)
+                except OSError:
+                    pass
 
 
 def plausible(res) -> bool:

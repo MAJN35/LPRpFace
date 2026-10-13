@@ -63,8 +63,12 @@ def roi_crop(src: Source, width: int, height: int) -> Optional[Tuple[int, int, i
 class SourceBin:
     """Builds the bin for one source and keeps per-source state (health, image queue, ROI offset)."""
 
-    def __init__(self, src: Source, index: int, on_image_done: Optional[Callable] = None):
+    def __init__(self, src: Source, index: int, on_image_done: Optional[Callable] = None,
+                 input_uri: Optional[str] = None):
         self.src = src
+        # restream (live view on): network cameras are read through the gateway (one camera connection shared with
+        # the browsers; late joiners get the cached stream parameters); events keep the camera's own URI.
+        self.input_uri = input_uri
         self.index = index                      # nvstreammux pad index = frame_meta.pad_index
         self.bin = Gst.Bin.new(f"source-bin-{index}")
         self.images: List[Tuple[str, Tuple[int, int]]] = []   # image sources: (file, (w, h)) by PTS index
@@ -84,11 +88,11 @@ class SourceBin:
         tail = self._tail()
         if s.type in ("rtsp", "rtmp", "http", "hls", "file"):
             uri = _make("nvurisrcbin", f"uri-{i}")
-            uri.set_property("uri", _encoded_uri(s.uri))
+            uri.set_property("uri", self.input_uri or _encoded_uri(s.uri))
             uri.set_property("num-extra-surfaces", 4)  # decoder headroom while frames wait downstream
-            if s.type == "rtsp":
+            if s.type == "rtsp" or self.input_uri:
                 uri.set_property("rtsp-reconnect-interval", RTSP_RECONNECT_S)
-                uri.set_property("select-rtp-protocol", 4 if s.rtsp_transport == "tcp" else 1)
+                uri.set_property("select-rtp-protocol", 4 if s.rtsp_transport == "tcp" or self.input_uri else 1)
                 uri.set_property("latency", 200)
             if s.type == "file":
                 uri.set_property("file-loop", s.loop)

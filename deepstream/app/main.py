@@ -8,7 +8,8 @@ Environment (defaults in brackets):
   KAFKA_BROKERS []  KAFKA_TOPIC [lpr.plate.events]
   LPR_CROPS_DIR [/data/crops]  LPR_JOBS_DIR [/data/jobs]
   LPR_CONTROL_HOST [0.0.0.0]  LPR_CONTROL_PORT [8090]  LPR_IMAGE_API [1]
-  LPR_LIVE [0]  LPR_MEDIA_RTSP [rtsp://media:8554]  LPR_MEDIA_API [http://media:9997]  LPR_INTERVAL [0]  LPR_EXIT_ON_EOS [auto: 1 without live sources and API]
+  LPR_LIVE [0]  LPR_RESTREAM [1: network cameras through the gateway when LPR_LIVE=1]  LPR_MEDIA_RTSP [rtsp://media:8554]  LPR_MEDIA_API [http://media:9997]  LPR_INTERVAL [0]  LPR_EXIT_ON_EOS [auto: 1 without live sources and API]
+  LPR_FACES [1]  LPR_FACE_MIN_FRAMES [2]  LPR_FACE_MIN_PX [40]  KAFKA_FACE_TOPIC [lpr.face.events]
   LPR_DEDUP_S [30]  LPR_TRACK_TIMEOUT_S [3]  LPR_MIN_TRACK_FRAMES [3]  LPR_EMIT_INVALID [0]
   LPR_MAX_CAMERAS [unset until measured, M8]
 """
@@ -76,17 +77,26 @@ def main() -> int:
     sinks = build_sinks(env("LPR_EVENT_SINKS", "stdout,jsonl"), env("LPR_EVENTS_JSONL", "/data/events/events.jsonl"),
                         env("LPR_EVENT_HTTP_URL"), env("KAFKA_BROKERS"), env("KAFKA_TOPIC", "lpr.plate.events"))
     emitter = EventEmitter(sinks)
+    # Face recognition (LPR_FACES=1): face snapshots + events on their own topic (lpr.face.events) and JSONL file.
+    face_emitter = None
+    if env("LPR_FACES", "1") == "1":
+        face_spec = ",".join(x for x in env("LPR_EVENT_SINKS", "stdout,jsonl").split(",") if x.strip() in ("jsonl", "kafka"))
+        face_emitter = EventEmitter(build_sinks(face_spec, env("LPR_FACE_EVENTS_JSONL", "/data/events/faces.jsonl"), "",
+                                                env("KAFKA_BROKERS"), env("KAFKA_FACE_TOPIC", "lpr.face.events")))
     # Video emit policy (user request 2026-10-13): one event per tracker track seen in >= LPR_MIN_TRACK_FRAMES
     # frames, and only plausible plates unless LPR_EMIT_INVALID=1. Image jobs always return their read.
     worker = ReaderWorker(emitter, model, env("LPR_CROPS_DIR", "/data/crops"), float(env("LPR_DEDUP_S", "30")),
                           VoteConfig(track_timeout_s=float(env("LPR_TRACK_TIMEOUT_S", "3")),
                                      min_frames=int(env("LPR_MIN_TRACK_FRAMES", "3"))),
-                          emit_invalid=env("LPR_EMIT_INVALID", "0") == "1")
+                          emit_invalid=env("LPR_EMIT_INVALID", "0") == "1", face_emitter=face_emitter,
+                          face_min_frames=int(env("LPR_FACE_MIN_FRAMES", "2")),
+                          face_min_px=float(env("LPR_FACE_MIN_PX", "40")))
     app_cfg = AppConfig(nvinfer_config=infer_cfg, tracker_config=env("LPR_TRACKER_CONFIG",
                                                                       "/app/configs/tracker_nvsort_lpr.yml"),
                         max_batch=profile[2], interval=interval, live=env("LPR_LIVE", "0") == "1",
                         media_rtsp=env("LPR_MEDIA_RTSP", "rtsp://media:8554"),
-                        media_api=env("LPR_MEDIA_API", "http://media:9997"), exit_on_eos=exit_on_eos)
+                        media_api=env("LPR_MEDIA_API", "http://media:9997"), exit_on_eos=exit_on_eos,
+                        restream=env("LPR_RESTREAM", "1") == "1")
     app = LprPipeline(app_cfg, sources, worker)
     def env_int(name, default):
         v = env(name).strip()

@@ -184,3 +184,45 @@ def test_emit_policy_accepts_only_plausible_plates():
     assert plausible(N(is_valid=None, characters=[digit(1), digit(2), digit(3), digit(4)]))   # protocol, 4 digits
     assert not plausible(N(is_valid=None, characters=[digit(1), {"class_id": 11}]))
 
+
+
+class _Collect:
+    def __init__(self):
+        self.events, self.stats = [], {}
+
+    def emit(self, ev):
+        self.events.append(ev)
+        return True
+
+    def close(self):
+        pass
+
+
+def test_one_face_event_per_track_with_its_largest_snapshot(tmp_path):
+    import numpy as np
+    from types import SimpleNamespace as N
+    from app.worker import ReaderWorker
+    [src] = load_sources(write_yaml(tmp_path, "sources:\n  - {id: door, type: rtsp, uri: 'rtsp://h/1'}\n"), env={})
+    faces = _Collect()
+    w = ReaderWorker(_Collect(), MODEL, str(tmp_path / "crops"), face_emitter=faces, face_min_frames=2, face_min_px=40)
+    try:
+        sb = N(index=0, src=src, frame_size=(1920, 1080))
+        w.register(sb)
+        def frame(t, track, width, crop=True):
+            f = {"track_id": track, "box": [100, 100, 100 + width, 100 + width], "score": 0.8, "crop_box": [5, 5, 5 + width, 5 + width]}
+            return N(source_index=0, t=t, faces=[f], frame_size=(1920, 1080), image_file=None,
+                     face_crops={track: np.full((width + 10, width + 10, 4), 120, np.uint8)} if crop else {})
+        w._faces(sb, frame(1.0, 7, 50))
+        w._faces(sb, frame(1.1, 7, 90))          # larger: becomes the snapshot
+        w._faces(sb, frame(1.2, 7, 60, crop=False))
+        w._faces(sb, frame(1.0, 8, 80))          # one frame only: skipped
+        w._faces(sb, frame(1.0, 9, 20))
+        w._faces(sb, frame(1.1, 9, 22))          # too small: skipped
+        w._finalize_faces(list(w.face_tracks))
+        assert len(faces.events) == 1 and w.stats["faces_skipped"] == 2
+        ev = faces.events[0]
+        assert ev["event_type"] == "face.detected" and ev["track_id"] == 7 and ev["frames_seen"] == 3
+        assert ev["face_bbox"] == [100, 100, 190, 190] and (tmp_path / "crops" / ev["snapshot_path"]).is_file()
+        assert ev["snapshot_path"].startswith("faces/door/")
+    finally:
+        w.finish(5)

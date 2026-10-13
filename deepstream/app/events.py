@@ -21,6 +21,9 @@ SCHEMA_PATH = next((p for p in (Path(os.environ.get("LPR_SCHEMA_PATH", "/nonexis
                    _HERE.parents[2] / "schemas" / "plate_event-2.0.json")
 
 
+FACE_SCHEMA_PATH = SCHEMA_PATH.with_name("face_event-1.0.json")
+
+
 def iso_utc(t: float) -> str:
     return _dt.datetime.fromtimestamp(t, tz=_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
@@ -107,3 +110,35 @@ def validate(event: Dict[str, Any]) -> None:
 
         _validator = jsonschema.Draft202012Validator(json.loads(SCHEMA_PATH.read_text()))
     _validator.validate(event)
+
+
+def from_face(face: Dict[str, Any], src, model: Dict[str, Any], snapshot_path: str, capture_time: float,
+              image_file: Optional[str] = None) -> Dict[str, Any]:
+    """One event per face track (video) or per face (image job); schemas/face_event-1.0.json."""
+    return {
+        "schema_version": "1.0",
+        "event_id": str(uuid.uuid4()),
+        "event_type": "face.detected.image" if image_file is not None else "face.detected",
+        "source": _source(src, image_file),
+        "camera_id": src.id,
+        "timestamp": iso_utc(capture_time),
+        "track_id": None if image_file is not None else int(face["track_id"]),
+        "face_bbox": _num(face["box"]),
+        "frame_size": [int(v) for v in face["frame_size"]],
+        "det_score": round(float(face["score"]), 4),
+        "frames_seen": int(face.get("frames", 1)),
+        "snapshot_path": snapshot_path,
+        "snapshot_face_box": [int(v) for v in face["crop_box"]],
+        "model": {"version": model.get("version"), "sha256": model.get("sha256")},
+    }
+
+
+_face_validator = None
+
+
+def validate_face(ev: Dict[str, Any]) -> None:
+    global _face_validator
+    if _face_validator is None:
+        import jsonschema
+        _face_validator = jsonschema.Draft202012Validator(json.loads(FACE_SCHEMA_PATH.read_text()))
+    _face_validator.validate(ev)

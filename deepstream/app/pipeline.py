@@ -63,6 +63,7 @@ class AppConfig:
     live: bool = False                     # live view: one detection stream at a time + raw camera paths
     media_rtsp: str = "rtsp://media:8554"  # mediamtx RTSP (the detection stream is published as <id>-osd)
     media_api: str = "http://media:9997"   # mediamtx API (raw camera paths are registered here)
+    restream: bool = True                  # read network cameras through the gateway (one camera connection)
     exit_on_eos: bool = True
     worker_queue: int = 64
 
@@ -78,6 +79,10 @@ class FrameItem:
     frame_size: Tuple[int, int]
     crops: Dict[int, np.ndarray] = field(default_factory=dict)   # track_id -> RGBA plate crop
     image_file: Optional[str] = None
+    # faces (face recognition, LPR_FACES=1): tracked faces in this frame and RGBA crops (with margin) of those larger
+    # than any earlier frame of their track: {track_id, box (source px), score, crop_box (face inside the crop)}
+    faces: List[Dict[str, Any]] = field(default_factory=list)
+    face_crops: Dict[int, np.ndarray] = field(default_factory=dict)
 
 
 class LprPipeline:
@@ -92,6 +97,8 @@ class LprPipeline:
         self._next_index = 0
         self._lock = threading.Lock()
         self.best_width: Dict[Tuple[int, int], float] = {}   # (source index, track id) -> best plate width seen
+        self.best_face: Dict[Tuple[int, int], float] = {}    # (source index, track id) -> best face width seen
+        self.faces_on = os.environ.get("LPR_FACES", "1") == "1"
         self.gateway = MediaGateway(cfg.media_api) if cfg.live else None
         self.live_osd: Optional[LiveOsd] = None
         self._pending: Dict[Tuple[int, int], FrameItem] = {}  # probe A -> probe B, by (pad index, frame number)
@@ -99,7 +106,8 @@ class LprPipeline:
         # per source: inferred frames (for fps_out) and recent latencies muxer arrival -> after tracker (ms)
         self.inferred: Dict[str, int] = collections.Counter()
         self.latency_ms: Dict[str, collections.deque] = collections.defaultdict(lambda: collections.deque(maxlen=600))
-        self.stats = {"frames_inferred": 0, "worker_dropped": 0}
+        self.stats = {"frames_inferred": 0, "worker_dropped": 0, "inference_fps": 0.0}
+        self._fps_hist: collections.deque = collections.deque(maxlen=6)   # (time, frames_inferred) every 2 s
         self._build()
         for s in sources:
             self.state[s.id] = {"status": "disabled" if not s.enabled else "starting", "failures": 0,
@@ -160,10 +168,30 @@ class LprPipeline:
         bus.connect("message", self._on_message)
 
     # --- sources ------------------------------------------------------------------------------------------------
-    def _attach(self, src: Source) -> None:
+    def _attach(self, src: Source, relay_checked: Optional[bool] = None) -> None:
+        """Restream: a network camera is read through the gateway, but only once the gateway has its stream (connecting
+        earlier fails, and DeepStream 6.3's reconnect then leaves the decoder broken - measured). The wait runs off
+        the main loop; if the gateway is not ready within 30 s the camera is read directly, so inference never
+        depends on the gateway."""
+        relay_wanted = self.cfg.live and self.cfg.restream and self.gateway is not None and \
+            src.type in ("rtsp", "rtmp", "http", "hls")
+        if relay_wanted and relay_checked is None:
+            self.gateway.register_raw(src)
+            self.state.setdefault(src.id, {"failures": 0, "reconnects": 0}).update(status="connecting", started_at=time.time())
+
+            def wait():
+                ok = self.gateway.wait_ready(src.id, 30.0)
+                if not ok:
+                    log.warning("[%s] gateway has no stream after 30 s: reading the camera directly", src.id)
+                # removed or replaced while waiting: nothing to attach
+                GLib.idle_add(lambda: (self.configs.get(src.id) is src and src.id not in self.by_id
+                                       and self._attach(src, ok), False)[-1])
+            threading.Thread(target=wait, name=f"relay-{src.id}", daemon=True).start()
+            return
         idx = self._next_index
         self._next_index += 1
-        sb = SourceBin(src, idx, on_image_done=self.worker.image_failed)
+        relay = f"{self.cfg.media_rtsp.rstrip('/')}/{src.id}" if relay_wanted and relay_checked else None
+        sb = SourceBin(src, idx, on_image_done=self.worker.image_failed, input_uri=relay)
         self.pipeline.add(sb.bin)
         sink = self.mux.get_request_pad(f"sink_{idx}")
         if sb.bin.get_static_pad("src").link(sink) != Gst.PadLinkReturn.OK:
@@ -177,7 +205,9 @@ class LprPipeline:
         self.worker.register(sb)
         if self.gateway is not None:
             self.gateway.register_raw(src)
-        if self.pipeline.get_state(0)[1] in (Gst.State.PLAYING, Gst.State.PAUSED):
+        # also while the pipeline is still on its way to PLAYING (a deferred relay attach lands then)
+        _, cur, pending = self.pipeline.get_state(0)
+        if cur in (Gst.State.PLAYING, Gst.State.PAUSED) or pending in (Gst.State.PLAYING, Gst.State.PAUSED):
             sb.bin.sync_state_with_parent()
         sb.start_feeder()
         where = src.uri_redacted or (src.device if src.type == "usb" else f"sensor {src.sensor_id}" if src.type == "csi" else "")
@@ -391,34 +421,76 @@ class LprPipeline:
                 for k in list(self._pending)[:128]:
                     self._pending.pop(k, None)
 
+    # Detection-stream look (live view): brand colours, plate label above the box, faces masked or outlined, and a
+    # header bar with camera, model rate and local time. The OSD cannot shape Persian, so plate text is Latin (A.7).
+    PLATE_RGBA = (0.18, 0.53, 1.0, 1.0)         # EdgeTech blue
+    LABEL_BG = (0.06, 0.32, 0.80, 0.88)
+    FACE_RGBA = (1.0, 0.71, 0.28, 1.0)          # amber
+    HEADER_BG = (0.05, 0.09, 0.15, 0.62)
+
     def _style(self, sb, fm) -> None:
-        """Detection-stream look for the shown source: plates = green box + Latin read, characters and labels
-        hidden, faces = opaque mask (privacy); keeps the crop of the stream in step with the source geometry."""
+        _, _, (cl, ct, cw, ch), scale = self._geometry(sb, fm)
+        x0 = (self.cfg.mux_width - cw * scale) / 2       # the camera image inside the square mux canvas
+        y0 = (self.cfg.mux_height - ch * scale) / 2
+        unit = max(12, int(cw * scale / 64))             # text size follows the shown image width
         l_obj = fm.obj_meta_list
         while l_obj is not None:
             om = pyds.NvDsObjectMeta.cast(l_obj.data)
             l_obj = l_obj.next
+            r = om.rect_params
+            tp = om.text_params
             if om.class_id == C.PLATE_ID:
-                om.rect_params.border_width = 3
-                om.rect_params.border_color.set(0.15, 0.85, 0.35, 1.0)
                 tid = int(om.object_id) if om.object_id != 0xFFFFFFFFFFFFFFFF else -1
                 text = self.worker.osd_text(sb.src.id, tid)
-                om.text_params.display_text = text
+                r.border_width = max(2, unit // 6)
+                r.border_color.set(*self.PLATE_RGBA)
+                r.has_bg_color = 1
+                r.bg_color.set(0.18, 0.53, 1.0, 0.10)
+                tp.display_text = f" {text} " if text else ""
                 if text:
-                    om.text_params.font_params.font_size = 14
-                    om.text_params.set_bg_clr = 1
-                    om.text_params.text_bg_clr.set(0.0, 0.0, 0.0, 0.7)
-            elif om.class_id == C.FACE_ID and sb.src.face_blur:
-                self.stats["faces_masked"] = self.stats.get("faces_masked", 0) + 1
-                om.rect_params.has_bg_color = 1
-                om.rect_params.bg_color.set(0.1, 0.1, 0.1, 1.0)
-                om.rect_params.border_width = 0
-                om.text_params.display_text = ""
+                    tp.font_params.font_name = "Sans Bold"
+                    tp.font_params.font_size = unit
+                    tp.font_params.font_color.set(1.0, 1.0, 1.0, 1.0)
+                    tp.set_bg_clr = 1
+                    tp.text_bg_clr.set(*self.LABEL_BG)
+                    tp.x_offset = int(max(x0, r.left))
+                    tp.y_offset = int(max(y0, r.top - unit * 2.1))
+            elif om.class_id == C.FACE_ID:
+                tp.display_text = ""
+                if sb.src.face_blur:
+                    self.stats["faces_masked"] = self.stats.get("faces_masked", 0) + 1
+                    r.has_bg_color = 1
+                    r.bg_color.set(0.1, 0.1, 0.1, 1.0)
+                    r.border_width = 0
+                else:
+                    r.border_width = max(2, unit // 8)
+                    r.border_color.set(*self.FACE_RGBA)
+                    r.has_bg_color = 0
             else:
-                om.rect_params.border_width = 0
-                om.text_params.display_text = ""
-        _, _, (cl, ct, cw, ch), scale = self._geometry(sb, fm)
+                r.border_width = 0
+                tp.display_text = ""
+        self._header(sb, fm, x0, y0, cw * scale, unit)
         self.live_osd.set_geometry(self.cfg.mux_width, self.cfg.mux_height, cw, ch, scale)
+
+    def _header(self, sb, fm, x0: float, y0: float, width: float, unit: int) -> None:
+        dm = pyds.nvds_acquire_display_meta_from_pool(fm.base_meta.batch_meta)
+        dm.num_rects = 1
+        bar = dm.rect_params[0]
+        bar.left, bar.top, bar.width, bar.height = x0, y0, width, unit * 2.4
+        bar.border_width = 0
+        bar.has_bg_color = 1
+        bar.bg_color.set(*self.HEADER_BG)
+        dm.num_labels = 1
+        lab = dm.text_params[0]
+        fps = self.state.get(sb.src.id, {}).get("fps_out", 0.0)
+        lab.display_text = f"  EdgeTech LPR  |  {sb.src.name if sb.src.name and sb.src.name.isascii() else sb.src.id}  |  model {fps:.1f} fps  |  " \
+                           f"{time.strftime('%Y-%m-%d %H:%M:%S')}"
+        lab.x_offset, lab.y_offset = int(x0 + unit * 0.4), int(y0 + unit * 0.45)
+        lab.font_params.font_name = "Sans Bold"
+        lab.font_params.font_size = max(10, int(unit * 0.85))
+        lab.font_params.font_color.set(1.0, 1.0, 1.0, 1.0)
+        lab.set_bg_clr = 0
+        pyds.nvds_add_display_meta_to_frame(fm, dm)
 
     def _frame(self, buf, fm):  # probe B
         sb = self.bins.get(fm.pad_index)
@@ -476,6 +548,8 @@ class LprPipeline:
                 pyds.unmap_nvds_buf_surface(hash(buf), fm.batch_id)
             except Exception:
                 log.debug("crop copy failed", exc_info=True)
+        if self.faces_on:
+            self._faces(buf, fm, sb, item)
         dump = os.environ.get("LPR_DEBUG_DUMP_DIR")
         if dump:
             log.info("[debug] %s frame %d pts %d file %s: %d detections, %d plates, tracks %s", sb.src.id,
@@ -485,6 +559,48 @@ class LprPipeline:
             d.pop("mux_box", None)
         if not self.worker.offer(item):
             self.stats["worker_dropped"] += 1
+
+    FACE_MARGIN = 0.35   # context around the face in its snapshot (the embedder finds landmarks in it)
+
+    def _faces(self, buf, fm, sb, item: FrameItem) -> None:
+        """Tracked faces of this frame; a snapshot when the face is larger than any earlier frame of its track."""
+        _, _, (cl, ct, cw, ch), scale = self._geometry(sb, fm)
+        if not scale:
+            return
+        px, py = (self.cfg.mux_width - cw * scale) / 2, (self.cfg.mux_height - ch * scale) / 2
+        need = []
+        l_obj = fm.obj_meta_list
+        while l_obj is not None:
+            om = pyds.NvDsObjectMeta.cast(l_obj.data)
+            l_obj = l_obj.next
+            if om.class_id != C.FACE_ID or om.object_id == 0xFFFFFFFFFFFFFFFF:
+                continue
+            r = om.rect_params
+            tid = int(om.object_id)
+            box = [(r.left - px) / scale + cl, (r.top - py) / scale + ct,
+                   (r.left + r.width - px) / scale + cl, (r.top + r.height - py) / scale + ct]
+            item.faces.append({"track_id": tid, "box": box, "score": float(om.confidence), "crop_box": None})
+            key = (fm.pad_index, tid)
+            if r.width > self.best_face.get(key, 0.0):
+                need.append((tid, (r.left, r.top, r.width, r.height), item.faces[-1]))
+                self.best_face[key] = r.width
+        if len(self.best_face) > 4000:     # old tracks: forget the oldest half
+            for k in list(self.best_face)[:2000]:
+                self.best_face.pop(k, None)
+        if not need:
+            return
+        try:
+            surface = pyds.get_nvds_buf_surface(hash(buf), fm.batch_id)
+            H, W = surface.shape[:2]
+            for tid, (x, y, w, h), face in need:
+                m = self.FACE_MARGIN
+                x1, y1 = max(0, int(x - m * w)), max(0, int(y - m * h))
+                x2, y2 = min(W, int(x + w + m * w)), min(H, int(y + h + m * h))
+                item.face_crops[tid] = np.array(surface[y1:y2, x1:x2], copy=True)
+                face["crop_box"] = [int(x - x1), int(y - y1), int(x - x1 + w), int(y - y1 + h)]
+            pyds.unmap_nvds_buf_surface(hash(buf), fm.batch_id)
+        except Exception:
+            log.debug("face crop copy failed", exc_info=True)
 
     # --- bus / lifecycle ----------------------------------------------------------------------------------------
     def _source_index_of(self, msg) -> Optional[int]:
@@ -536,6 +652,10 @@ class LprPipeline:
         connection fails never retries). Only a live source that has never produced a frame is rebuilt, with
         backoff, since each new bin is a fresh connection attempt."""
         now = time.time()
+        # model rate: frames inferred per second over the last ~10 s, all sources together
+        self._fps_hist.append((now, self.stats["frames_inferred"]))
+        (t0, n0), (t1, n1) = self._fps_hist[0], self._fps_hist[-1]
+        self.stats["inference_fps"] = round((n1 - n0) / (t1 - t0), 2) if t1 > t0 else 0.0
         for idx, sb in list(self.bins.items()):
             st = self.state.get(sb.src.id)
             if st is None:

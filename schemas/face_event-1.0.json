@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "face_event-1.0.json",
+  "title": "Face detection event 1.0 (one per face track; Kafka topic lpr.face.events). The snapshot is referenced by path, never embedded; the face service adds the embedding and posts it to the backend.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "event_id", "event_type", "source", "camera_id", "timestamp", "track_id",
+               "face_bbox", "frame_size", "det_score", "frames_seen", "snapshot_path", "snapshot_face_box", "model"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "event_id": {"type": "string", "format": "uuid"},
+    "event_type": {"enum": ["face.detected", "face.detected.image"]},
+    "source": {"type": "object", "additionalProperties": false, "required": ["id", "type", "uri_redacted", "file_name"],
+      "properties": {"id": {"type": "string"}, "type": {"type": "string"},
+        "uri_redacted": {"type": "string", "not": {"pattern": "://[^/@]*:[^/@]*@"}},
+        "file_name": {"type": ["string", "null"]}}},
+    "camera_id": {"type": "string"},
+    "timestamp": {"type": "string", "pattern": "Z$"},
+    "track_id": {"type": ["integer", "null"]},
+    "face_bbox": {"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4},
+    "frame_size": {"type": "array", "items": {"type": "integer"}, "minItems": 2, "maxItems": 2},
+    "det_score": {"type": "number", "minimum": 0, "maximum": 1},
+    "frames_seen": {"type": "integer", "minimum": 1},
+    "snapshot_path": {"type": "string"},
+    "snapshot_face_box": {"type": "array", "items": {"type": "integer"}, "minItems": 4, "maxItems": 4},
+    "model": {"type": "object"}
+  }
+}

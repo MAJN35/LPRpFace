@@ -39,6 +39,7 @@ class MediaGateway:
         self.api = api_url.rstrip("/")
         self._paths: Dict[str, str] = {}  # id -> camera URI (with credentials; never logged)
         self._synced: Dict[str, str] = {}  # id -> URI the gateway has (worker thread only)
+        self._wake = threading.Event()     # a new camera is registered at once (DeepStream reads it through here)
         self._lock = threading.Lock()
         threading.Thread(target=self._sync_loop, name="media-gateway", daemon=True).start()
 
@@ -53,10 +54,27 @@ class MediaGateway:
         except Exception:  # noqa: BLE001 - gateway not up yet
             return 0
 
+    def ready(self, sid: str) -> bool:
+        """True when the gateway has the camera's stream (DeepStream can read it through the relay)."""
+        try:
+            with urllib.request.urlopen(f"{self.api}/v3/paths/get/{sid}", timeout=3) as r:
+                return bool(json.loads(r.read()).get("ready"))
+        except Exception:  # noqa: BLE001 - not registered yet, gateway down
+            return False
+
+    def wait_ready(self, sid: str, timeout_s: float = 30.0) -> bool:
+        end = time.time() + timeout_s
+        while time.time() < end:
+            if self.ready(sid):
+                return True
+            time.sleep(1)
+        return False
+
     def register_raw(self, src: Source) -> None:
         if src.type in RAW_TYPES:
             with self._lock:
                 self._paths[src.id] = src.uri
+            self._wake.set()
 
     def unregister_raw(self, sid: str) -> None:
         with self._lock:
@@ -80,7 +98,8 @@ class MediaGateway:
                     self._synced[sid] = uri
                 else:
                     log.debug("raw path %s: gateway answered %s", sid, code)
-            time.sleep(10)
+            self._wake.wait(10)
+            self._wake.clear()
 
 
 class Publisher:
