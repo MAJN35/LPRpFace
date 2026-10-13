@@ -40,7 +40,7 @@ export function Settings({ role, onTheme }: { role: string; onTheme: (t: "light"
       <h1>Settings</h1><p className="sub">Signed in as {role}. Camera passwords belong in the server environment, never in the URL shown here.</p>
       {msg && <div className="banner inset" role="status">{msg}</div>}
       <section className="card raised" aria-labelledby="cam-h"><h2 id="cam-h">Sources</h2>
-        <StateView loading={cams.loading} error={cams.error} empty={!cams.data?.length} emptyText="No sources." onRetry={cams.reload}>
+        <StateView hasData={!!cams.data} loading={cams.loading} error={cams.error} empty={!cams.data?.length} emptyText="No sources." onRetry={cams.reload}>
           <div className="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>URI</th><th>Max fps</th><th>Face blur</th><th>Actions</th></tr></thead><tbody>
             {cams.data?.map((c) => (
               <tr key={c.id}><td>{c.id}</td><td>{c.name}</td><td>{c.type}</td><td className="muted">{c.uri}</td><td>{c.max_fps || "–"}</td><td>{c.face_blur ? "on" : "off"}</td>

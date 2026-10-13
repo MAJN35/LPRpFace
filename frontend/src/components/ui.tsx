@@ -30,19 +30,23 @@ export function useApi<T>(path: string | null, pollMs = 0) {
   return { data, error, loading, reload: load, updatedAt };
 }
 
-// Loading / error / empty states around content.
-export function StateView({ loading, error, empty, emptyText = "Nothing to show yet.", onRetry, children }: {
-  loading: boolean; error: ApiError | null; empty?: boolean; emptyText?: string; onRetry?: () => void; children: ReactNode;
+// Loading / error / empty states around content. With data already on screen, a reload keeps it visible (dimmed)
+// instead of flashing a loading state; the first load shows a skeleton.
+export function StateView({ loading, error, empty, emptyText = "Nothing to show yet.", onRetry, hasData = false, children }: {
+  loading: boolean; error: ApiError | null; empty?: boolean; emptyText?: string; onRetry?: () => void;
+  hasData?: boolean; children: ReactNode;
 }) {
-  if (loading) return <div className="state" role="status" aria-live="polite">Loading…</div>;
+  if (loading && !hasData) return (
+    <div className="skeleton" role="status" aria-live="polite"><span className="sr-only">Loading…</span><span /><span /><span /></div>
+  );
   if (error) return (
     <div className="state" role="alert">
       <p className="bad">{error.status === 0 ? "Cannot reach the backend." : `Error ${error.status}: ${error.message}`}</p>
       {onRetry && <button type="button" onClick={onRetry}>Retry</button>}
     </div>
   );
-  if (empty) return <div className="state">{emptyText}</div>;
-  return <>{children}</>;
+  if (empty && !loading) return <div className="state">{emptyText}</div>;
+  return <div className={loading ? "busy" : "settled"} aria-busy={loading}>{children}</div>;
 }
 
 // Shown when data is older than `maxAgeMs` (e.g. polling failed silently).

@@ -20,7 +20,7 @@ export function EventDetail({ role = "viewer" }: { role?: string }) {
   return (
     <>
       <h1>Event</h1><p className="sub">Viewing this event is recorded in the audit log.</p>
-      <StateView loading={ev.loading} error={ev.error} onRetry={ev.reload}>
+      <StateView hasData={!!ev.data} loading={ev.loading} error={ev.error} onRetry={ev.reload}>
         {e && (
           <div className="grid2">
             <section className="card raised" aria-labelledby="ev-h"><h2 id="ev-h"><Plate e={e} /></h2>

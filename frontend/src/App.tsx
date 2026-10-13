@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { NavLink, Route, Routes } from "react-router-dom";
+import React, { useEffect, useState } from "react";
+import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, auth } from "./api";
 import { EventDetail } from "./pages/EventDetail";
 import { Health } from "./pages/Health";
@@ -15,6 +15,12 @@ const THEME_KEY = "lpr.theme";
 function applyTheme(t: string) {
   if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t;
   try { localStorage.setItem(THEME_KEY, t); } catch { /* storage blocked */ }
+}
+
+// Re-mounts on navigation so each page fades in (CSS .page; off under reduced motion).
+function PageFade({ children }: { children: React.ReactNode }) {
+  const { pathname } = useLocation();
+  return <div className="page" key={pathname}>{children}</div>;
 }
 
 export function App() {
@@ -42,6 +48,7 @@ export function App() {
         <button type="button" onClick={() => { auth.set(null); setRole(null); }} style={{ marginTop: 12 }}>Sign out</button>
       </nav>
       <main>
+        <PageFade>
         <Routes>
           <Route path="/" element={<Overview />} />
           <Route path="/live" element={<Live />} />
@@ -52,6 +59,7 @@ export function App() {
           <Route path="/settings" element={<Settings role={role} onTheme={applyTheme} />} />
           <Route path="*" element={<div className="state">Page not found.</div>} />
         </Routes>
+        </PageFade>
       </main>
     </div>
   );

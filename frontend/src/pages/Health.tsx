@@ -8,7 +8,7 @@ export function Health() {
     <>
       <h1>System health</h1><p className="sub">Refreshes every 3 s.</p>
       <StaleBanner updatedAt={st.updatedAt} maxAgeMs={10000} what="Health data" />
-      <StateView loading={st.loading} error={st.error} onRetry={st.reload}>
+      <StateView hasData={!!st.data} loading={st.loading} error={st.error} onRetry={st.reload}>
         {st.data && inf && (<>
           <section className="kpis" aria-label="Service status">
             <div className="kpi raised"><div className="label">Inference</div><div className={`value ${inf.reachable ? "ok" : "bad"}`}>{inf.reachable ? "up" : "down"}</div></div>

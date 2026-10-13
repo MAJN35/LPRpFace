@@ -38,7 +38,7 @@ export function History() {
           <span className="muted" aria-live="polite">{page.data ? `${total} events` : ""}</span>
           <a className="btn" href={csv}>Export CSV</a>
         </div>
-        <StateView loading={page.loading} error={page.error} empty={!page.data?.items.length} emptyText="No events match these filters." onRetry={page.reload}>
+        <StateView hasData={!!page.data} loading={page.loading} error={page.error} empty={!page.data?.items.length} emptyText="No events match these filters." onRetry={page.reload}>
           <div className="table-wrap"><table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Type</th><th>List</th><th>Model</th><th>Confidence</th><th>Status</th></tr></thead><tbody>
             {page.data?.items.map((e) => (
               <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><Plate e={e} /></td>

@@ -65,7 +65,7 @@ export function Lists({ role }: { role: string }) {
       )}
 
       <section className="card raised" aria-label={`${listLabel(list)} ${kind}s`}>
-        <StateView loading={page.loading} error={page.error} empty={!items.length} onRetry={page.reload}
+        <StateView hasData={!!page.data} loading={page.loading} error={page.error} empty={!items.length} onRetry={page.reload}
           emptyText={`No ${kind}s on the ${listLabel(list).toLowerCase()}.`}>
           <div className="table-wrap"><table>
             <thead><tr>{canEdit && <th><span className="sr-only">Select</span></th>}
@@ -101,7 +101,7 @@ export function Lists({ role }: { role: string }) {
 
       {kind === "plate" && list === "unknown" && (
         <section className="card raised" aria-labelledby="unreg-h"><h2 id="unreg-h">Seen in the last 7 days, not on any list</h2>
-          <StateView loading={unreg.loading} error={unreg.error} empty={!unreg.data?.length} emptyText="Every recently seen plate is on a list." onRetry={unreg.reload}>
+          <StateView hasData={!!unreg.data} loading={unreg.loading} error={unreg.error} empty={!unreg.data?.length} emptyText="Every recently seen plate is on a list." onRetry={unreg.reload}>
             <div className="table-wrap"><table><thead><tr><th>Plate</th><th>Sightings</th><th>Last seen</th><th>Put on list</th></tr></thead><tbody>
               {unreg.data?.map((u) => (
                 <tr key={u.plate_key}>
