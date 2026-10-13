@@ -1,13 +1,13 @@
 # Project status
 
-Last update: 2026-10-13 (M1 in progress)
+Last update: 2026-10-13 (M1 done)
 
 ## Milestones
 
 | | Milestone | State |
 |---|---|---|
 | M0 | Discovery | DONE, gate passed 2026-10-13 |
-| M1 | Model check (CPU) | PARTIAL: code + SHA256SUMS + labels done; ONNX checks, export and batch parity **blocked** (Docker cannot pull, see below) |
+| M1 | Model check (CPU) | DONE 2026-10-13 |
 | M2 | Decoder + reader library | not started |
 | M3 | TensorRT on Jetson | not started (GATE after) |
 | M4 | DeepStream app (standalone) | not started |
@@ -67,11 +67,21 @@ M0 questions answered 2026-10-13 (see decisions.md).
 
 ## Blockers
 
-- **Docker image pulls fail**: the daemon uses `HTTP(S)_PROXY=http://127.0.0.1:57556`
-  (`/etc/systemd/system/docker.service.d/http-proxy.conf`) and nothing listens on that port. Direct access works
-  from the host (Docker Hub manifest + blob download 200, PyPI 200, download.pytorch.org 200). nvcr.io answers 403
-  directly (relevant only if a DeepStream image other than the local `deepstream-l4t:6.3-samples` is needed).
-  Needs the user (sudo): remove/fix the drop-in, or start the proxy client.
+None. (Docker pulls fixed 2026-10-13: daemon proxy → Xray tunnel inbound 127.0.0.1:57531; see decisions.md.)
+
+## M1 results (2026-10-13, tools container on the Jetson CPU)
+
+- `check_model.py models/v1`, `models/v2` → exit 0: checksums, 48 classes = A.4, ONNX `images [1,3,960,960]` →
+  `output0 [1,52,18900]`, metadata names match, dummy run OK. Warnings: Gaf has no glyph, Zhe glyph ژ unused.
+- `pytest` → 29 passed (includes deliberately wrong mapping → exit 3, tampered/missing/unlisted files → exit 2,
+  AGENTS.md drift → exit 3, wrong ONNX shape/metadata → exit 4).
+- Dynamic-batch exports (`models/<ver>/export/*_dynbatch.onnx`, git-ignored; `.json` sidecars committed):
+  v1 sha256 `980fd50f…a268`, v2 sha256 `48095325…bf2d`, input `[batch,3,960,960]`, output `[batch,52,18900]`.
+- Batch vs batch-1 (16 real test images, CPU FP32, conf 0.25, IoU 0.5; match = same class, IoU ≥ 0.99,
+  |Δscore| ≤ 0.001): v2 45/45 and v1 46/46 detections identical at batch 1, 2, 4, 8; max |Δ raw output|
+  4.9e-4 (v2), 1.8e-3 (v1). Reports: `docs/m1_batch_parity_v1.json`, `docs/m1_batch_parity_v2.json`.
+- Memory: export peaks at ~5.6 GB used (0.9 GB available); CPU onnxruntime with the default arena was OOM-killed
+  at batch ≥ 2, so the compare tool disables the arena and loads one model at a time (min available 365 MB).
 
 ## PENDING (needs device / user)
 

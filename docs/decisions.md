@@ -120,3 +120,15 @@ Format: date, decision, reason, alternatives, source.
   installs them offline to prove they resolve, and pins each with version + SHA-256. The lock is therefore
   platform-specific (linux/aarch64, CPython 3.10); regenerate it with `tools/build_cpu_image.sh --lock` on x86.
 - **Source:** curl measurements on the device; Xray `~/config.json` (structure only, secrets not recorded).
+
+## 2026-10-13: M1 accepted: dynamic-batch ONNX for the engine
+
+- **Decision:** Use `models/<ver>/export/*_dynbatch.onnx` (batch axis dynamic, output dims pinned to 52 × 18900)
+  as the input for the TensorRT engine with profile min 1 / opt 2 / max 8 (M3). The pinned output dims are a
+  shape annotation only (measured with onnxruntime; `onnx.checker` passes); nodes and weights are unchanged
+  (59,193,334 initializer values in the delivered ONNX vs 59,193,339 in the export, +5 shape constants; +8 Reshape,
+  +16 Transpose for the dynamic batch).
+- **Reason:** identical detections to the delivered batch-1 ONNX at batch 1/2/4/8 on CPU (see STATUS.md).
+- **Note:** `opencv-python` 4.11.0.86 is installed alongside the pinned headless 4.10.0.84 because Ultralytics
+  depends on it; `cv2` resolves to 4.11.0 in the tools image. Harmless for CPU tooling.
+- **Source:** `docs/m1_batch_parity_v{1,2}.json`, `models/v{1,2}/export/*.json`.

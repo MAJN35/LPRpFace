@@ -1,0 +1,38 @@
+{
+  "images": 16,
+  "ref_detections": 46,
+  "sizes": {
+    "1": {
+      "max_abs_output_diff": 0.0018310546875,
+      "matched": 46,
+      "unmatched_ref": 0,
+      "unmatched_cand": 0,
+      "images_with_differences": 0,
+      "identical": true
+    },
+    "2": {
+      "max_abs_output_diff": 0.0018310546875,
+      "matched": 46,
+      "unmatched_ref": 0,
+      "unmatched_cand": 0,
+      "images_with_differences": 0,
+      "identical": true
+    },
+    "4": {
+      "max_abs_output_diff": 0.0018310546875,
+      "matched": 46,
+      "unmatched_ref": 0,
+      "unmatched_cand": 0,
+      "images_with_differences": 0,
+      "identical": true
+    },
+    "8": {
+      "max_abs_output_diff": 0.0018310546875,
+      "matched": 46,
+      "unmatched_ref": 0,
+      "unmatched_cand": 0,
+      "images_with_differences": 0,
+      "identical": true
+    }
+  }
+}
