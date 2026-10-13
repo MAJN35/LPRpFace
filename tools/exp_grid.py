@@ -97,13 +97,16 @@ def main(argv=None) -> int:
     ts = lambda e: _dt.datetime.strptime(e["processed_at"], "%Y-%m-%dT%H:%M:%S.%fZ").replace(tzinfo=_dt.timezone.utc).timestamp()  # noqa: E731
     evs = [e for e in evs if start <= ts(e) <= end]
     appearances = run_s / (side["frames"] / side["fps"]) * len(side["clips"])
+    per_clip = appearances / len(side["clips"])   # appearances of each clip in the window
     per = {}
     for s in srcs:
         sid = s["id"]
         mine = [e for e in evs if e["camera_id"] == sid]
         vals = [h["sources"].get(sid, {}) for h in samples]
         per[sid] = {"fps_out": round(statistics.mean(v.get("fps_out", 0) for v in vals), 2) if vals else 0,
-                    "correct": sum(1 for e in mine if e["plate_string_latin"] in gt), "events": len(mine),
+                    # a split track can give two correct events for one appearance: cap per clip
+                    "correct": sum(min(sum(1 for e in mine if e["plate_string_latin"] == g), per_clip) for g in gt),
+                    "correct_events": sum(1 for e in mine if e["plate_string_latin"] in gt), "events": len(mine),
                     "latency_ms_p50": vals[-1].get("latency_ms_p50") if vals else None,
                     "latency_ms_p95": vals[-1].get("latency_ms_p95") if vals else None}
     ram = [int(m.group(1)) for m in re.finditer(r"RAM (\d+)/", (a.log / "tegrastats.log").read_text())] \
@@ -113,7 +116,7 @@ def main(argv=None) -> int:
            "run_seconds": round(run_s), "window_utc": [round(start), round(end)], "fps_out_per_source_mean": round(statistics.mean(p["fps_out"] for p in per.values()), 2),
            "fps_out_per_source_min": min(p["fps_out"] for p in per.values()),
            "accuracy_mean": round(statistics.mean(acc), 3), "accuracy_min": round(min(acc), 3),
-           "wrong_events": sum(p["events"] - p["correct"] for p in per.values()),
+           "wrong_events": sum(p["events"] - p["correct_events"] for p in per.values()),
            "latency_ms_p50_max": max((p["latency_ms_p50"] or 0) for p in per.values()),
            "latency_ms_p95_max": max((p["latency_ms_p95"] or 0) for p in per.values()),
            "peak_ram_mb": max(ram) if ram else None, "power_mode": Path("/var/lib/nvpmodel/status").read_text().strip(),
