@@ -211,8 +211,9 @@ internal paths in responses.
   external notification) without separate approval.
 - Moving an entry between lists must be one action (per row and in bulk), for operators and admins; viewers read
   only. Every list change and every person view is written to the audit log.
-- A person is a record (name, optional notes) linked to plates. Persons are never identified, matched or enrolled
-  by face (see Privacy); changing that needs an explicit change of the privacy rule below.
+- A person is a record (name, optional notes) linked to plates and, since 2026-10-13, to faces: detected faces
+  are embedded (ArcFace) and matched to persons; an unmatched good-quality face starts a new unnamed person that an
+  operator can rename, merge or move between lists. A blocklisted person's face raises the same alert as a plate.
 
 **Frontend** (reuse the existing framework; otherwise propose React + TypeScript and wait for my OK): Neumorphism
 (soft UI) industrial dashboard built on design tokens (CSS variables) with high contrast and visible focus; pages:
@@ -221,9 +222,14 @@ data in production; responsive; keyboard accessible; reduced motion; Persian pla
 self-hosted Persian font (e.g. Vazirmatn, check license) next to the Latin form; live video through an approved
 WebRTC/HLS gateway (browsers cannot play RTSP).
 
-**Privacy and data**: face detection only (no identification, matching or enrollment); optional face blur on the
-output stream; no face crops stored by default; plates and crops are personal data: access control, retention with
-automatic deletion, audit log of views/exports; nothing leaves the Jetson without my explicit approval; no telemetry.
+**Privacy and data** (changed by the user on 2026-10-13): face recognition is enabled: face snapshots are stored,
+embedded with InsightFace ArcFace R50 (`w600k_r50`, weights licensed for non-commercial research only: a commercial
+deployment needs a licence from InsightFace) and matched to persons on the device. Biometric data is personal data
+of the highest sensitivity: access control (viewers see, operators/admins change), retention with automatic deletion
+(snapshots and embeddings), audit log of person views, renames, merges, deletions and exports, a snapshot library
+where snapshots can be deleted; optional face blur on the output stream stays per camera. Nothing leaves the Jetson
+without my explicit approval (notifications are in-page and OS notifications of the open dashboard, no push
+service); no telemetry. Inform people under surveillance as the local law requires.
 
 **Time**: verify NTP sync on the Jetson; store UTC; document whether RTSP events use capture or processing time.
 

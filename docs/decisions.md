@@ -405,3 +405,62 @@ Format: date, decision, reason, alternatives, source.
 - **Notifications:** an in-page toast for each recognized plate on every page (live WebSocket). It can be muted with
   the bell (`localStorage["lpr.notify"]`). Blocklist alerts always show and stay until dismissed. No browser or OS
   push: nothing leaves the device, and the Notification API needs HTTPS anyway.
+
+## 2026-10-13/14: Face recognition, person registration, snapshot library, OS notifications, OSD (user requests)
+
+- **Privacy rule changed by the user:** face recognition is on. The AGENTS.md privacy section was rewritten to say
+  so; the user chose this explicitly in answer to a question.
+- **Face model (user's choice): InsightFace buffalo_l.**
+  - SCRFD `det_10g` finds landmarks; ArcFace R50 `w600k_r50` gives a 512-d embedding.
+  - Downloaded directly from github.com/deepinsight/insightface releases v0.7 (the Xray proxy was down; GitHub
+    answered directly). Zip SHA-256 80ffe37d…; the two ONNX files are recorded in `models/face/arcface_r50/SHA256SUMS`
+    and checked at start.
+  - **The weights are licensed for non-commercial research only.** A commercial deployment needs a licence from
+    InsightFace. The alternative offered was SFace + YuNet (Apache-2.0/MIT).
+- **Where faces are processed:**
+  - DeepStream saves one snapshot per face track: the largest frame, with 35 % margin. It needs at least 2 frames
+    and a face at least 40 px wide.
+  - The snapshot is published on `lpr.face.events` (`schemas/face_event-1.0.json`).
+  - A separate `face` container (onnxruntime CPU, 1 GB, 4 CPUs) embeds it: SCRFD at 192 px about 0.11 s, ArcFace
+    about 0.5 s, measured on the board. It then posts to the backend. The inference pipeline never waits for it.
+- **Matching (backend):**
+  - Cosine similarity against every person's reference faces (at most 30 per person). At or above 0.45 the face
+    belongs to that person. Otherwise a good face (≥ 48 px, landmark score ≥ 0.6) starts an unnamed person,
+    "Unknown #n", that operators can name, merge or move between lists.
+  - Low-quality faces are stored unassigned.
+  - Thresholds are settings (`FACE_MATCH_THRESHOLD` …). The 0.45 is a starting value, not calibrated on real data
+    from these cameras.
+  - A blocklisted person's face raises an alert like a plate.
+- **Manual registration:**
+  - `POST /persons/register` takes a name, list, notes and photos. The face service's internal `/embed` (port 8095,
+    internal network, ingest key) uses the largest face per photo at 640 px.
+  - Every photo with a face becomes a reference. A faceless photo is reported; if no photo has a face, nothing is
+    created.
+  - If the face already matches someone (e.g. an "Unknown #n" seen by a camera), a merge is offered.
+  - The dashboard's "Register people" page takes many rows, or many photos at once with names from the file names.
+  - `POST /persons/{id}/photos` adds references to an existing person.
+- **Snapshot library:** plate crops and face snapshots in one list. Deleting removes the image file; the event or
+  face record stays. Crops are now owned by the backend's uid (10001), handed over by DeepStream, so it can delete
+  them. Before this, retention also could not delete crop files.
+- **Notifications:**
+  - On-screen toasts for plates and faces, the latter with a snapshot. Blocklist hits are kept until dismissed.
+  - OS notifications through a service worker, shown when the dashboard is not in front. They need a secure
+    context: HTTPS on port 8443 with a self-signed LAN certificate (`tools/make_cert.sh`, `deploy/certs/`,
+    git-ignored).
+  - nginx enables HTTPS only when a certificate is mounted.
+  - No push service: nothing leaves the device.
+- **Restream:** with the live view on, DeepStream reads network cameras through the gateway (`LPR_RESTREAM=1`):
+  - **Why:** the phone camera serves a second client without stream parameters (ffprobe: width 0). DeepStream
+    therefore got nothing while the gateway held the first connection.
+  - **Start-up order:** DeepStream waits until the gateway has the stream before connecting. Connecting early fails,
+    and DeepStream 6.3's reconnect then leaves NVDEC broken ("Surface not registered", measured).
+  - **Fallback:** if the gateway is not ready within 30 s, the camera is read directly.
+  - **Bug fixed:** a bin attached while the pipeline was still on its way to PLAYING was never started.
+- **Model fps:** `/health` `pipeline.inference_fps` (frames inferred per second over about 10 s) and per-camera
+  `fps_out`. Shown on Overview, System health, each live tile, and in the detection stream's header.
+- **Plates are drawn as plate shapes everywhere:** history, overview, live, lists, event detail, library,
+  notifications. Reads that fit no layout show Persian text only. The Latin form stays as the accessible name.
+- **Detection stream (OSD):**
+  - brand-blue plate boxes with the read above them;
+  - amber outline (or the mask, with face blur) on faces;
+  - a header bar with camera, model fps and local time (`TZ`, default Asia/Tehran; events stay UTC).

@@ -17,6 +17,7 @@ nvpmodel mode 8 (MODE_20W_6CORE), jetson_clocks not changed. Final summary: [`FI
 | + | Live view (raw + detections), user request | DONE 2026-10-13 |
 | + | Persian-first dashboard and plate search, user request | DONE 2026-10-13 |
 | + | Branding/icons/button motion; emit policy; live grid; notifications (user requests) | DONE 2026-10-13 |
+| + | Face recognition, person registration, snapshot library, OS notifications, restream, OSD (user requests) | DONE 2026-10-14 |
 
 ## Device facts (measured)
 
@@ -209,6 +210,20 @@ Decisions needed: none (all decided by the user on 2026-10-13)
 - Toast notification per detection, mutable; blocklist alerts always shown.
 - Tests: frontend 42/42, DeepStream unit 18/18, backend 26/26, e2e 28/28 on a demo-only stack.
 
+## Face recognition and related (user requests, 2026-10-14)
+
+- **Faces:** DeepStream face snapshots go to the `face` service (ArcFace R50, CPU) and then to backend matching, with
+  persons named or "Unknown #n". There are People and person pages (rename, move faces, merge, delete), and
+  "Register people" (many at once, with photos).
+- **Images and notifications:** a snapshot library with delete; OS notifications over HTTPS 8443 plus on-screen
+  ones; plate shapes in every table.
+- **Live:** model fps on the dashboard and in the OSD header; restream through the gateway (the phone camera works
+  again).
+- **Tests:** backend 32/32, face 7/7, DeepStream 18/18, frontend 49/49, e2e 36/36 (demo stack, incl. HTTPS secure
+  context).
+- **Measured on the board:** phone 30 fps in, 3.5 inferred/s, about 1.1–1.3 GB RAM available, face service about
+  270 MB. Face matching on real faces has not been measured yet.
+
 ## Open items / PENDING (all)
 
 1. USB and CSI cameras: not attached; configs and steps in the M4 report.
@@ -225,3 +240,7 @@ Decisions needed: none (all decided by the user on 2026-10-13)
    numeric checks only.
 10. Formats of disabled, diplomatic, transit, free-zone and protocol plates in the search editor are approximate
     (no verified visual reference); a real reference image of each would let them be drawn exactly.
+11. Face recognition: thresholds (match 0.45, new person >= 48 px) are starting values; tune them on real faces from
+    these cameras. ArcFace/SCRFD weights are non-commercial research only (licence needed for commercial use).
+12. OS notifications need the dashboard over https://<jetson>:8443 with the self-signed certificate accepted once per
+    device (or deploy/certs/tls.crt installed as trusted).
