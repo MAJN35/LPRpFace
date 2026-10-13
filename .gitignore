@@ -24,3 +24,6 @@ venv/
 .pytest_cache/
 node_modules/
 dist/
+
+# Dataset archives (personal data)
+*.zip

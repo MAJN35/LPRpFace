@@ -46,3 +46,60 @@ Format: date, decision, reason, alternatives, source.
 | Rulebook | `AGENTS.md` = Part A (TODOs replaced by the checksum and accuracy decisions above); `CLAUDE.md` = `@AGENTS.md`; Part B kept in `docs/milestones.md`. |
 
 - **Source:** user reply to the M0 report, 2026-10-13.
+
+## 2026-10-13: Reference checksums written on first use (M1)
+
+- **Decision:** `tools/check_model.py models/<ver> --init-sums` wrote `models/v1/SHA256SUMS` and `models/v2/SHA256SUMS`
+  (`.pt`, `.onnx`, `class_names.json`). They equal the values measured in M0. `--init-sums` refuses to overwrite an
+  existing file; every later run fails (exit 2) on any changed, missing or unlisted model file.
+- **Reason:** user decision (M0 answer 12): no reference checksums were supplied.
+- **Source:** user, 2026-10-13; tool output in the M1 report.
+
+## 2026-10-13: Class table check (M1)
+
+- **Decision:** `reader/lpr_reader/classes.py` holds the A.4 table as code. `check_model.py` compares `class_names.json`
+  with it and with the A.4 table parsed from `AGENTS.md` (a drift fails too). `labels.txt` is generated from
+  `class_names.json` only after the check passes. Missing glyphs are warnings (Gaf has none in `class_names.json`;
+  the reader takes گ from A.4); a different glyph is an error. `class_names.json` gives ژ for Zhe (29); A.4 defines
+  Zhe as the wheelchair symbol, so the reader does not use that glyph (how disabled plates are written: M2).
+- **Source:** AGENTS.md A.4; `models/v*/class_names.json`.
+
+## 2026-10-13: CPU tooling container pins (M1)
+
+- **Decision:** `python:3.10.22-slim-bookworm@sha256:5be5aaec…b370` (multi-arch index digest, arm64 manifest
+  `sha256:f3902572…1b8b`); `torch==2.11.0+cpu`, `torchvision==0.26.0+cpu` (PyTorch CPU index), `ultralytics==8.3.141`,
+  `onnx==1.17.0`, `onnxslim==0.1.53`, `onnxruntime==1.23.2`, `numpy==1.26.4`, `opencv-python-headless==4.10.0.84`;
+  hash-locked in `tools/docker/requirements.lock` (pip-compile inside the pinned base image).
+- **Reason:** both delivered ONNX files embed producer `pytorch 2.11.0` and Ultralytics metadata `version 8.3.141`,
+  `args {'batch': 1, 'half': False, 'dynamic': False, 'simplify': True, 'opset': 17, 'nms': False}`, so the re-export
+  uses the same torch. Ultralytics 8.3.141 `export_onnx` requires `onnx>=1.12.0,<1.18.0` and `onnxslim>=0.1.53`.
+  PyPI's aarch64 `torch==2.11.0` depends on CUDA 13 packages (`nvidia-cudnn-cu13` …), the `+cpu` build does not.
+  onnxruntime ≥ 1.24 has no cp310 wheels (1.31.0 requires Python ≥ 3.11). `YOLO_AUTOINSTALL=false` stops Ultralytics
+  from pip-installing at runtime; the run wrapper uses `--network none`.
+- **Alternatives:** an x86 machine (none available); host install (not allowed).
+- **Source:** ONNX metadata strings of the delivered files; Ultralytics 8.3.141 wheel `ultralytics/engine/exporter.py`
+  lines 555–600 and `ultralytics/utils/export.py`; PyPI JSON API (`/pypi/<pkg>/json`); download.pytorch.org/whl/cpu
+  index; Docker Hub registry API (image config `PYTHON_VERSION=3.10.22`, created 2026-10-06).
+
+## 2026-10-13: Batched ONNX export method (M1)
+
+- **Decision:** `tools/export_onnx.py` calls Ultralytics `export(format="onnx", imgsz=960, opset=17, simplify=True,
+  dynamic=False, batch=N)` on a temporary copy of the `.pt`, with `torch.onnx.export` wrapped to force `dynamo=False`,
+  and for `--dynamic-batch` to set `dynamic_axes` to the batch axis only (`images[0]`, `output0[0]`). The engine
+  profile from M0 (min 1 / opt 2 / max 8) needs the dynamic batch axis; fixed batch N stays available.
+- **Reason:** A.3 requires the classic exporter, but Ultralytics 8.3.141 does not pass `dynamo` and torch ≥ 2.9
+  defaults to the dynamo exporter. Ultralytics' `dynamic=True` also makes height, width and the anchor count
+  dynamic, which nvinfer does not need. Exporting from a temporary copy keeps Ultralytics from writing next to the
+  delivered `.onnx` (it saves `<pt>.with_suffix('.onnx')`); the `.pt` checksum is verified before and after.
+- **Source:** Ultralytics 8.3.141 `exporter.py` (`dynamic = {"images": {0: "batch", 2: "height", 3: "width"}}`,
+  `output0: {0: "batch", 2: "anchors"}`).
+
+## 2026-10-13: Decoder follows Ultralytics NMS (M1/M2)
+
+- **Decision:** `lpr_reader.decode` reproduces Ultralytics 8.3.141 `non_max_suppression` (argmax label per anchor,
+  `score > conf`, top 30000, class offset 7680 → class-aware NMS, `max_det` 300) plus the A.7 per-class thresholds,
+  and keeps each anchor's 48 class scores. The letterbox follows `LetterBox(auto=False, center=True)` and
+  `scale_boxes` (pad rounding `round(d ± 0.1)`, pad value configurable: 114 Ultralytics, 0 DeepStream).
+- **Note for M2:** `Model.predict` defaults to `rect=True` (minimal-rectangle padding), so the `.pt` parity run must
+  use `rect=False` to see the same 960×960 input as the ONNX/TensorRT path.
+- **Source:** Ultralytics 8.3.141 `utils/ops.py` (`non_max_suppression`, `scale_boxes`), `data/augment.py` (`LetterBox`).

@@ -1,0 +1,12 @@
+# CPU tooling for M1/M2 (check_model, export_onnx, parity). Lock: tools/docker/requirements.lock (pip-compile, hashes).
+# torch/torchvision come from the PyTorch CPU index; PyPI's aarch64 torch pulls CUDA 13 wheels.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.11.0+cpu           # same torch as the delivered ONNX producer ("pytorch 2.11.0")
+torchvision==0.26.0+cpu     # pairs with torch 2.11
+ultralytics==8.3.141        # A.3
+onnx==1.17.0                # Ultralytics 8.3.141 requires onnx>=1.12,<1.18
+onnxslim==0.1.53            # minimum Ultralytics 8.3.141 accepts
+onnxruntime==1.23.2         # newest release with cp310 aarch64 wheels
+numpy==1.26.4
+opencv-python-headless==4.10.0.84
+pytest==8.3.5
