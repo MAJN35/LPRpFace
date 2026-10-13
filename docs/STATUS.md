@@ -1,13 +1,13 @@
 # Project status
 
-Last update: 2026-10-13 (M0)
+Last update: 2026-10-13 (M1 in progress)
 
 ## Milestones
 
 | | Milestone | State |
 |---|---|---|
 | M0 | Discovery | DONE, gate passed 2026-10-13 |
-| M1 | Model check (CPU) | not started |
+| M1 | Model check (CPU) | PARTIAL: code + SHA256SUMS + labels done; ONNX checks, export and batch parity **blocked** (Docker cannot pull, see below) |
 | M2 | Decoder + reader library | not started |
 | M3 | TensorRT on Jetson | not started (GATE after) |
 | M4 | DeepStream app (standalone) | not started |
@@ -49,7 +49,7 @@ Computed with `sha256sum`; **not yet confirmed against the source bundles** (zip
 | v2 .onnx | bf80a2b544d865b44943fb4596791852a209523ccd4481084d83312646429b96 |
 | class_names.json (v1 = v2) | fac415707bf654fafa8bc28899f81caf97bee611ac1aab3ac15161c81c9aee90 |
 
-- `SHA256SUMS` files are missing in `models/v1`, `models/v2` (to be created in M1 after confirmation).
+- `SHA256SUMS` written on first use (M1, user decision) and committed; `labels.txt` generated after the class check.
 - `class_names.json` `names` match A.4 ids 0–47 by inspection (formal check in M1).
 - `char_glyphs` has no entry for 43 Gaf (گ); the reader will take it from A.4.
 
@@ -64,6 +64,14 @@ Computed with `sha256sum`; **not yet confirmed against the source bundles** (zip
 ## Open questions
 
 M0 questions answered 2026-10-13 (see decisions.md).
+
+## Blockers
+
+- **Docker image pulls fail**: the daemon uses `HTTP(S)_PROXY=http://127.0.0.1:57556`
+  (`/etc/systemd/system/docker.service.d/http-proxy.conf`) and nothing listens on that port. Direct access works
+  from the host (Docker Hub manifest + blob download 200, PyPI 200, download.pytorch.org 200). nvcr.io answers 403
+  directly (relevant only if a DeepStream image other than the local `deepstream-l4t:6.3-samples` is needed).
+  Needs the user (sudo): remove/fix the drop-in, or start the proxy client.
 
 ## PENDING (needs device / user)
 
