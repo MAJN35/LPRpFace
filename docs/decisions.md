@@ -199,3 +199,22 @@ Format: date, decision, reason, alternatives, source.
   plates are not weak detections, they are absent (small plates, ~60 px in the network input; A.5 limit).
 - **Reader fix found on real detections:** `_Det` compared by value (numpy arrays) in `list.remove` when a plate had
   > 8 character boxes → now identity comparison (`@dataclass(eq=False)`), with a unit test.
+
+## 2026-10-13: Watchlists for persons and plates (user request)
+
+- **Decision:** New requirement added to AGENTS.md A.7 ("Watchlists"). Plates (keyed by the normalized
+  `plate_key`, so any Persian/Latin form is one entry) and persons each sit on exactly one list: `whitelist`,
+  `blocklist` or `unknown` (default). A plate may link to one person. Effective status = the plate's list, or the
+  person's list when the plate is `unknown`; unregistered plates are `unknown`. Each event stores the effective
+  status and person at ingest (only valid reads are matched, to avoid false hits from partial reads); a blocklist hit
+  is pushed to the dashboard as a WebSocket `alert`. Nothing leaves the device (no gate control, no notification).
+- **Ease of change:** one PATCH per entry (dashboard: a three-button Whitelist/Blocklist/Unknown control on every
+  row, also on the event detail page), `POST /api/v1/lists/move` for bulk moves (checkbox selection), and a
+  "seen in the last 7 days, not on any list" table with one-click list buttons. Operators/admins edit, viewers read.
+  Every list change and every person view is audited.
+- **Persons are records, not biometric identities.** A.7 Privacy forbids face identification, matching and
+  enrollment; a person is a name + notes linked to plates. Face-based person lists need an explicit change of the
+  privacy rule (asked of the user; recommendation: keep it forbidden).
+- **Schema:** migration `0002_watchlists` (tables `persons`, `plates`; columns `events.list_status`,
+  `events.person_id`). Undo: `alembic downgrade 0001` and remove `backend/app/routes/lists.py`, `frontend/src/pages/Lists.tsx`.
+- **Checks:** backend 22/22 tests (8 new watchlist tests), frontend 14/14 (4 new), e2e extended.

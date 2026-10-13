@@ -14,7 +14,7 @@ from sqlalchemy import delete, func, select
 from .config import settings
 from .db import SessionLocal
 from .models import Event, User
-from .routes import api, system
+from .routes import api, lists, system
 from .security import hash_password
 
 log = logging.getLogger("lpr.backend")
@@ -76,3 +76,4 @@ if settings.cors_origins:
                        allow_headers=["Authorization", "Content-Type"], allow_credentials=False)
 app.include_router(api.router)
 app.include_router(system.router)
+app.include_router(lists.router)

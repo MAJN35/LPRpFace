@@ -1,11 +1,11 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { Page, auth, query } from "../api";
-import { Plate, StateView, Validity, fmtTime, useApi } from "../components/ui";
+import { ListBadge, Plate, StateView, Validity, fmtTime, useApi } from "../components/ui";
 
 const LIMIT = 25;
-type F = { q: string; camera_id: string; from: string; to: string; plate_type: string; is_valid: string; model_version: string };
-const EMPTY: F = { q: "", camera_id: "", from: "", to: "", plate_type: "", is_valid: "", model_version: "" };
+type F = { q: string; camera_id: string; from: string; to: string; plate_type: string; is_valid: string; model_version: string; list_status: string };
+const EMPTY: F = { q: "", camera_id: "", from: "", to: "", plate_type: "", is_valid: "", model_version: "", list_status: "" };
 const iso = (local: string) => (local ? new Date(local).toISOString() : "");
 
 export function History() {
@@ -29,6 +29,7 @@ export function History() {
         <label>Type<select className="inset" value={draft.plate_type} onChange={set("plate_type")}>
           <option value="">any</option>{["standard", "disabled", "diplomatic", "transit", "freezone", "protocol", "unknown"].map((t) => <option key={t}>{t}</option>)}</select></label>
         <label>Validity<select className="inset" value={draft.is_valid} onChange={set("is_valid")}><option value="">any</option><option value="true">valid</option><option value="false">invalid</option></select></label>
+        <label>List<select className="inset" value={draft.list_status} onChange={set("list_status")}><option value="">any</option><option value="whitelist">whitelist</option><option value="blocklist">blocklist</option><option value="unknown">unknown</option></select></label>
         <label>Model<select className="inset" value={draft.model_version} onChange={set("model_version")}><option value="">any</option><option>v1</option><option>v2</option></select></label>
         <div className="row"><button type="submit">Search</button><button type="button" onClick={() => { setDraft(EMPTY); setF(EMPTY); setOffset(0); }}>Clear</button></div>
       </form>
@@ -38,10 +39,10 @@ export function History() {
           <a className="btn" href={csv}>Export CSV</a>
         </div>
         <StateView loading={page.loading} error={page.error} empty={!page.data?.items.length} emptyText="No events match these filters." onRetry={page.reload}>
-          <div className="table-wrap"><table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Type</th><th>Model</th><th>Confidence</th><th>Status</th></tr></thead><tbody>
+          <div className="table-wrap"><table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Type</th><th>List</th><th>Model</th><th>Confidence</th><th>Status</th></tr></thead><tbody>
             {page.data?.items.map((e) => (
               <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><Plate e={e} /></td>
-                <td>{e.plate_type}</td><td>{e.model_version}</td><td>{(e.confidence * 100).toFixed(0)} %</td><td><Validity e={e} /></td></tr>
+                <td>{e.plate_type}</td><td><ListBadge status={e.list_status} /></td><td>{e.model_version}</td><td>{(e.confidence * 100).toFixed(0)} %</td><td><Validity e={e} /></td></tr>
             ))}
           </tbody></table></div>
           <nav className="row" aria-label="Pages" style={{ marginTop: 12 }}>

@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Page, Stats, Status, query } from "../api";
-import { Plate, StaleBanner, StateView, Validity, fmtTime, useApi } from "../components/ui";
+import { ListBadge, Plate, StaleBanner, StateView, Validity, fmtTime, useApi } from "../components/ui";
 
 export function Overview() {
   const stats = useApi<Stats>("/stats?hours=24", 15000);
@@ -27,9 +27,9 @@ export function Overview() {
       <div className="grid2">
         <section className="card raised" aria-labelledby="recent-h"><h2 id="recent-h">Recent plates</h2>
           <StateView loading={recent.loading} error={recent.error} empty={!recent.data?.items.length} emptyText="No plates recorded yet." onRetry={recent.reload}>
-            <div className="table-wrap"><table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Status</th></tr></thead><tbody>
+            <div className="table-wrap"><table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>List</th><th>Status</th></tr></thead><tbody>
               {recent.data?.items.map((e) => (
-                <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><Plate e={e} /></td><td><Validity e={e} /></td></tr>
+                <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><Plate e={e} /></td><td><ListBadge status={e.list_status} /></td><td><Validity e={e} /></td></tr>
               ))}
             </tbody></table></div>
           </StateView>

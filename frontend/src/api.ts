@@ -4,12 +4,21 @@ export type EventSummary = {
   timestamp: string; track_id: number | null; model_version: string; plate_type: string;
   plate_string_fa: string; plate_string_latin: string; zone: string | null; expiry: string | null;
   markers: string[]; confidence: number; is_valid: boolean | null; invalid_reason: string | null;
-  frames_voted: number; has_crop: boolean;
+  frames_voted: number; has_crop: boolean; list_status: ListStatus; person_id: number | null;
 };
+export type ListStatus = "whitelist" | "blocklist" | "unknown";
+export const LISTS: ListStatus[] = ["whitelist", "blocklist", "unknown"];
+export type PlateEntry = { id: number; plate_key: string; plate_string_fa: string; plate_string_latin: string;
+  list_status: ListStatus; effective_status: ListStatus; person_id: number | null; person_name: string | null;
+  notes: string; last_seen: string | null };
+export type PersonEntry = { id: number; full_name: string; notes: string; list_status: ListStatus; plates: number };
+export type ListPage<T> = { items: T[]; total: number; limit: number; offset: number };
+export type Unregistered = { plate_key: string; plate_string_fa: string; plate_string_latin: string; sightings: number; last_seen: string };
 export type EventDetail = EventSummary & {
   characters: { class_id: number; name: string; confidence: number; margin?: number; box: number[] }[];
   plate_bbox: number[]; frame_size: number[]; model_sha256: string; engine_sha256: string | null;
-  precision: string; processed_at: string | null;
+  precision: string; processed_at: string | null; plate_key: string;
+  person: { id: number; full_name: string; list_status: ListStatus } | null;
 };
 export type Page = { items: EventSummary[]; total: number; limit: number; offset: number };
 export type Stats = { hours: number; total: number; valid: number; valid_rate: number | null;
@@ -72,7 +81,8 @@ export function query(params: Record<string, string | number | boolean | undefin
 
 export type LiveState = "connecting" | "open" | "closed";
 // Live events with reconnect backoff (1 s doubling to 30 s). Returns a stop function.
-export function connectLive(onEvent: (e: EventSummary) => void, onState: (s: LiveState) => void): () => void {
+export function connectLive(onEvent: (e: EventSummary) => void, onState: (s: LiveState) => void,
+  onAlert?: (e: EventSummary) => void): () => void {
   let ws: WebSocket | null = null; let delay = 1000; let stopped = false; let timer: number | undefined;
   const open = () => {
     if (stopped) return;
@@ -80,9 +90,12 @@ export function connectLive(onEvent: (e: EventSummary) => void, onState: (s: Liv
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/api/v1/ws/events?token=${encodeURIComponent(auth.token ?? "")}`);
     ws.onopen = () => { delay = 1000; onState("open"); };
-    ws.onmessage = (m) => { try { const d = JSON.parse(m.data); if (d.type === "event") onEvent(d.event); } catch { /* ignore */ } };
+    ws.onmessage = (m) => { try { const d = JSON.parse(m.data); if (d.type === "event") onEvent(d.event); if (d.type === "alert") onAlert?.(d.event); } catch { /* ignore */ } };
     ws.onclose = () => { onState("closed"); if (!stopped) { timer = window.setTimeout(open, delay); delay = Math.min(delay * 2, 30000); } };
   };
   open();
   return () => { stopped = true; window.clearTimeout(timer); ws?.close(); };
 }
+
+export const json = (body: unknown, method = "POST"): RequestInit =>
+  ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });

@@ -15,6 +15,7 @@ const EV: EventSummary = {
   source_type: "rtsp", source_file: null, timestamp: "2026-10-13T08:00:00Z", track_id: 1, model_version: "v2",
   plate_type: "standard", plate_string_fa: "۱۲ ب ۳۴۵ | ۶۷", plate_string_latin: "12 Be 345 | 67", zone: null,
   expiry: null, markers: [], confidence: 0.93, is_valid: true, invalid_reason: null, frames_voted: 4, has_crop: true,
+  list_status: "unknown", person_id: null,
 };
 
 function mockFetch(handler: (url: string) => { status?: number; body?: unknown } | Promise<never>) {

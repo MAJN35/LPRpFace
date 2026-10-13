@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Index, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -41,6 +41,8 @@ class Event(Base):
     plate_bbox: Mapped[list] = mapped_column(JSON)
     frame_size: Mapped[list] = mapped_column(JSON)
     crop_path: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    list_status: Mapped[str] = mapped_column(String(16), default="unknown", index=True)  # at ingest time
+    person_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True, index=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (Index("ix_events_camera_ts", "camera_id", "ts"),)
@@ -64,3 +66,34 @@ class AuditLog(Base):
     username: Mapped[str] = mapped_column(String(64))
     action: Mapped[str] = mapped_column(String(32))          # view_event | view_crop | export | search ...
     target: Mapped[str] = mapped_column(Text, default="")
+
+
+LIST_STATUSES = ("whitelist", "blocklist", "unknown")
+
+
+class Person(Base):
+    """A person record (name, notes) linked to plates. Never identified by face (AGENTS.md privacy)."""
+    __tablename__ = "persons"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    full_name: Mapped[str] = mapped_column(String(128))
+    notes: Mapped[str] = mapped_column(Text, default="")
+    list_status: Mapped[str] = mapped_column(String(16), default="unknown", index=True)
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
+                                                    onupdate=func.now())
+
+
+class Plate(Base):
+    """A registered plate, keyed by the normalized plate_key."""
+    __tablename__ = "plates"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    plate_key: Mapped[str] = mapped_column(String(64), unique=True)
+    plate_string_fa: Mapped[str] = mapped_column(String(64), default="")
+    plate_string_latin: Mapped[str] = mapped_column(String(96), default="")
+    list_status: Mapped[str] = mapped_column(String(16), default="unknown", index=True)
+    person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True,
+                                                     index=True)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
+                                                    onupdate=func.now())

@@ -1,5 +1,5 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
-import { ApiError, EventSummary, api } from "../api";
+import { ApiError, EventSummary, LISTS, ListStatus, api } from "../api";
 
 // Fetch state for a path; re-runs when `path` changes or reload() is called; optional polling.
 export function useApi<T>(path: string | null, pollMs = 0) {
@@ -76,3 +76,27 @@ export function Validity({ e }: { e: Pick<EventSummary, "is_valid" | "invalid_re
 }
 
 export const fmtTime = (iso: string) => new Date(iso).toLocaleString(undefined, { hour12: false });
+
+const LIST_LABEL: Record<ListStatus, string> = { whitelist: "Whitelist", blocklist: "Blocklist", unknown: "Unknown" };
+const LIST_CLASS: Record<ListStatus, string> = { whitelist: "ok", blocklist: "bad", unknown: "muted" };
+export const listLabel = (s: ListStatus) => LIST_LABEL[s];
+
+export function ListBadge({ status }: { status: ListStatus | undefined }) {
+  const s = status ?? "unknown";
+  return <span className={`badge inset ${LIST_CLASS[s]}`}>{LIST_LABEL[s]}</span>;
+}
+
+// One-click move between lists: the current list is pressed; the others move the entry there.
+export function ListSwitch({ value, onChange, disabled, label }: {
+  value: ListStatus; onChange: (s: ListStatus) => void; disabled?: boolean; label: string;
+}) {
+  return (
+    <div className="row" role="group" aria-label={`List for ${label}`} style={{ gap: 6 }}>
+      {LISTS.map((s) => (
+        <button key={s} type="button" aria-pressed={value === s} disabled={disabled || value === s}
+          className={value === s ? `inset ${LIST_CLASS[s]}` : ""} onClick={() => onChange(s)}
+          style={{ padding: "4px 10px", fontSize: 13 }}>{LIST_LABEL[s]}</button>
+      ))}
+    </div>
+  );
+}

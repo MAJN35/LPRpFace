@@ -4,6 +4,7 @@ import { api, auth } from "./api";
 import { EventDetail } from "./pages/EventDetail";
 import { Health } from "./pages/Health";
 import { History } from "./pages/History";
+import { Lists } from "./pages/Lists";
 import { Live } from "./pages/Live";
 import { Login } from "./pages/Login";
 import { Overview } from "./pages/Overview";
@@ -27,7 +28,7 @@ export function App() {
   }, []);
   if (!checked) return <div className="state" role="status">Loading…</div>;
   if (!role) return <Login onDone={setRole} />;
-  const links: [string, string][] = [["/", "Overview"], ["/live", "Live"], ["/history", "History"], ["/health", "System health"], ["/settings", "Settings"]];
+  const links: [string, string][] = [["/", "Overview"], ["/live", "Live"], ["/history", "History"], ["/lists", "Lists"], ["/health", "System health"], ["/settings", "Settings"]];
   return (
     <div className="shell">
       <nav className="side raised" aria-label="Main">
@@ -40,7 +41,8 @@ export function App() {
           <Route path="/" element={<Overview />} />
           <Route path="/live" element={<Live />} />
           <Route path="/history" element={<History />} />
-          <Route path="/events/:id" element={<EventDetail />} />
+          <Route path="/lists" element={<Lists role={role} />} />
+          <Route path="/events/:id" element={<EventDetail role={role} />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings role={role} onTheme={applyTheme} />} />
           <Route path="*" element={<div className="state">Page not found.</div>} />

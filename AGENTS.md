@@ -200,6 +200,20 @@ zone, validity, model version), event detail, statistics, live updates via WebSo
 writes, retention, migrations, authentication when exposed beyond a trusted LAN, CORS restricted, no secrets or
 internal paths in responses.
 
+**Watchlists (persons and plates; added 2026-10-13 at the user's request)**
+- Every registered plate and every person is on exactly one list: `whitelist`, `blocklist` or `unknown` (default).
+  Plates are stored by their normalized `plate_key` (any Persian/Latin form, digit script or spacing maps to the
+  same entry); a plate may be linked to one person.
+- Effective status of a recognized plate: the plate's own list, unless it is `unknown` and its linked person is on
+  `whitelist`/`blocklist`, then the person's list. Unregistered plates are `unknown`.
+- Every event stores the effective list status and the linked person at ingest time; history can be filtered by
+  it; a `blocklist` hit is pushed to the dashboard as an alert. No action leaves the device (no gate control, no
+  external notification) without separate approval.
+- Moving an entry between lists must be one action (per row and in bulk), for operators and admins; viewers read
+  only. Every list change and every person view is written to the audit log.
+- A person is a record (name, optional notes) linked to plates. Persons are never identified, matched or enrolled
+  by face (see Privacy); changing that needs an explicit change of the privacy rule below.
+
 **Frontend** (reuse the existing framework; otherwise propose React + TypeScript and wait for my OK): Neumorphism
 (soft UI) industrial dashboard built on design tokens (CSS variables) with high contrast and visible focus; pages:
 Overview, Live, History, Event detail, System health, Settings; loading/empty/error/disconnected/stale states; no mock

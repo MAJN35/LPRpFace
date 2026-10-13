@@ -69,6 +69,8 @@ class EventOut(BaseModel):
     invalid_reason: Optional[str]
     frames_voted: int
     has_crop: bool
+    list_status: str = "unknown"           # whitelist | blocklist | unknown, at ingest time
+    person_id: Optional[int] = None
 
 
 class EventDetail(EventOut):
@@ -79,6 +81,8 @@ class EventDetail(EventOut):
     engine_sha256: Optional[str]
     precision: str
     processed_at: Optional[dt.datetime]
+    plate_key: str = ""
+    person: Optional[Dict[str, Any]] = None
 
 
 class Page(BaseModel):

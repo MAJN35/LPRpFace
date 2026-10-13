@@ -80,6 +80,18 @@ try {
   check(true, "live: new event arrives over WebSocket through nginx");
   await shot("live");
 
+  await page.goto(`${URL_}/lists`, { waitUntil: "networkidle0" });
+  await page.type("input[placeholder^='۱۲ ب']", "۲۷ ج ۸۱۴ | ۵۵");
+  await page.click("form[aria-label='Add plate'] button[type=submit]");
+  await page.waitForFunction(() => document.body.innerText.includes("added to Blocklist"), { timeout: 10000 });
+  await page.waitForSelector("[role=group][aria-label='List for 27 Jim 814 | 55']");
+  await page.click("[role=group][aria-label='List for 27 Jim 814 | 55'] button:first-child");   // -> Whitelist
+  await page.waitForFunction(() => document.body.innerText.includes("moved to Whitelist"), { timeout: 10000 });
+  check(true, "lists: add a plate in Persian to the blocklist, move it to the whitelist in one click");
+  await page.click("[role=tablist][aria-label=List] button:first-child");
+  await page.waitForFunction(() => document.body.innerText.includes("27 Jim 814 | 55"));
+  await shot("lists");
+
   await page.goto(`${URL_}/health`, { waitUntil: "networkidle0" });
   await page.waitForFunction(() => document.body.innerText.includes("Events stored"));
   check(true, "system health page");

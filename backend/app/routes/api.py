@@ -21,7 +21,8 @@ from .. import schemas
 from ..config import settings
 from ..db import SessionLocal, get_db
 from ..live import broadcaster
-from ..models import AuditLog, Event, User
+from ..models import AuditLog, Event, Person, User
+from .lists import resolve_status
 from ..security import (admin, any_role, create_token, hash_password, ingest_key, operator, user_from_token,
                         verify_password)
 
@@ -71,6 +72,12 @@ def _row(e: schemas.EventIn) -> Event:
                  frame_size=e.frame_size, crop_path=e.best_frame_crop_path)
 
 
+async def _enriched(db: AsyncSession, e: schemas.EventIn) -> Event:
+    row = _row(e)
+    row.list_status, row.person_id = await resolve_status(db, e.plate_key if e.is_valid else "")
+    return row
+
+
 def _out(r: Event) -> schemas.EventOut:
     return schemas.EventOut(event_id=r.event_id, event_type=r.event_type, camera_id=r.camera_id,
                             source_type=r.source_type, source_file=r.source_file, timestamp=r.ts,
@@ -78,7 +85,8 @@ def _out(r: Event) -> schemas.EventOut:
                             plate_string_fa=r.plate_string_fa, plate_string_latin=r.plate_string_latin, zone=r.zone,
                             expiry=r.expiry, markers=r.markers or [], confidence=r.confidence, is_valid=r.is_valid,
                             invalid_reason=r.invalid_reason, frames_voted=r.frames_voted,
-                            has_crop=bool(r.crop_path))
+                            has_crop=bool(r.crop_path), list_status=r.list_status or "unknown",
+                            person_id=r.person_id)
 
 
 @router.post("/ingest/events", response_model=schemas.IngestResult, tags=["ingest"],
@@ -87,19 +95,25 @@ async def ingest(body: schemas.EventIn, db: AsyncSession = Depends(get_db)):
     """Idempotent: the same event_id twice creates one row (200 with created=false the second time)."""
     if await db.get(Event, body.event_id) is not None:
         return schemas.IngestResult(event_id=body.event_id, created=False)
-    db.add(_row(body))
+    row = await _enriched(db, body)
+    out = _out(row).model_dump(mode="json")
+    db.add(row)
     try:
         await db.commit()
     except IntegrityError:  # a concurrent delivery of the same event won the race
         await db.rollback()
         return schemas.IngestResult(event_id=body.event_id, created=False)
-    broadcaster.publish({"type": "event", "event": _out(_row(body)).model_dump(mode="json")})
+    broadcaster.publish({"type": "event", "event": out})
+    if out["list_status"] == "blocklist":
+        broadcaster.publish({"type": "alert", "event": out})
     return schemas.IngestResult(event_id=body.event_id, created=True)
 
 
 # --- events ------------------------------------------------------------------------------------------------------------
-def _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q):
+def _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q, list_status=None):
     conds = []
+    if list_status:
+        conds.append(Event.list_status == list_status)
     if camera_id:
         conds.append(Event.camera_id == camera_id)
     if since:
@@ -131,10 +145,12 @@ async def list_events(camera_id: Optional[str] = None, since: Optional[dt.dateti
                       until: Optional[dt.datetime] = Query(None, alias="to"), plate_type: Optional[str] = None,
                       zone: Optional[str] = None, is_valid: Optional[bool] = None,
                       model_version: Optional[str] = None, event_type: Optional[str] = None,
-                      q: Optional[str] = Query(None, max_length=64), limit: int = Query(50, ge=1, le=200),
+                      q: Optional[str] = Query(None, max_length=64),
+                      list_status: Optional[str] = Query(None, pattern="^(whitelist|blocklist|unknown)$"),
+                      limit: int = Query(50, ge=1, le=200),
                       offset: int = Query(0, ge=0), user: User = Depends(any_role),
                       db: AsyncSession = Depends(get_db)):
-    where = _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q)
+    where = _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q, list_status)
     base = select(Event)
     count = select(func.count()).select_from(Event)
     if where is not None:
@@ -160,11 +176,11 @@ async def export_csv(camera_id: Optional[str] = None, since: Optional[dt.datetim
     await db.commit()
     buf = io.StringIO()
     w = csv.writer(buf)
-    w.writerow(["timestamp", "camera_id", "plate_string_fa", "plate_string_latin", "plate_type", "zone", "is_valid",
+    w.writerow(["timestamp", "camera_id", "plate_string_fa", "plate_string_latin", "plate_type", "zone", "is_valid", "list_status",
                 "confidence", "event_id"])
     for r in rows:
         w.writerow([r.ts.isoformat(), r.camera_id, r.plate_string_fa, r.plate_string_latin, r.plate_type, r.zone,
-                    r.is_valid, f"{r.confidence:.3f}", r.event_id])
+                    r.is_valid, r.list_status, f"{r.confidence:.3f}", r.event_id])
     return StreamingResponse(iter([buf.getvalue()]), media_type="text/csv; charset=utf-8",
                              headers={"Content-Disposition": "attachment; filename=lpr_events.csv"})
 
@@ -176,9 +192,12 @@ async def get_event(event_id: str, user: User = Depends(any_role), db: AsyncSess
         raise HTTPException(404, "event not found")
     db.add(AuditLog(username=user.username, action="view_event", target=event_id))
     await db.commit()
+    person = await db.get(Person, r.person_id) if r.person_id else None
     return schemas.EventDetail(**_out(r).model_dump(), characters=r.characters, plate_bbox=r.plate_bbox,
                                frame_size=r.frame_size, model_sha256=r.model_sha256, engine_sha256=r.engine_sha256,
-                               precision=r.precision, processed_at=r.processed_at)
+                               precision=r.precision, processed_at=r.processed_at, plate_key=r.plate_key,
+                               person={"id": person.id, "full_name": person.full_name,
+                                       "list_status": person.list_status} if person else None)
 
 
 @router.get("/events/{event_id}/crop", tags=["events"], response_class=FileResponse)
