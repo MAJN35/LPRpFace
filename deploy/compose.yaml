@@ -36,6 +36,8 @@ services:
       LPR_MEDIA_RTSP: rtsp://media:8554
       LPR_MEDIA_API: http://media:9997
       LPR_DEDUP_S: ${LPR_DEDUP_S:-30}
+      LPR_FACES: ${LPR_FACES:-1}                             # face snapshots + face events (face recognition)
+      TZ: ${TZ:-Asia/Tehran}                                 # clock on the live view; events stay UTC
       LPR_TRACK_TIMEOUT_S: ${LPR_TRACK_TIMEOUT_S:-3}         # finalize a track this long after its last read
       LPR_MIN_TRACK_FRAMES: ${LPR_MIN_TRACK_FRAMES:-3}       # a track needs this many read frames for an event
       LPR_EMIT_INVALID: ${LPR_EMIT_INVALID:-0}               # 1 = also emit implausible reads (no/too few characters)
@@ -130,6 +132,24 @@ services:
       kafka-init: {condition: service_completed_successfully}
       backend: {condition: service_healthy}
 
+  face:                           # face recognition: ArcFace embeddings of face snapshots (CPU), matched by the backend
+    image: lpr-face:1.0
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 1g
+    cpus: 4
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      BACKEND_URL: http://backend:8000
+      INGEST_KEY: ${INGEST_KEY:?set INGEST_KEY in .env}
+      FACE_THREADS: ${FACE_THREADS:-4}
+    volumes:
+      - lpr-data:/data:ro
+      - ../models/face/arcface_r50:/models/face:ro    # InsightFace buffalo_l (non-commercial licence), SHA256SUMS checked
+    depends_on:
+      kafka-init: {condition: service_completed_successfully}
+      backend: {condition: service_healthy}
+
   db:
     image: postgres:15.10-alpine3.21@sha256:a58cec2ba7a60b4c08d51f2ca93c1ad65fbf96e75cf0c89b7c0d2684860d3bb3
     restart: unless-stopped
@@ -159,7 +179,7 @@ services:
       INFERENCE_URL: http://deepstream:8090
       CROPS_DIR: /data/crops
       RETENTION_DAYS: ${RETENTION_DAYS:-30}
-    volumes: [lpr-data:/data:ro]
+    volumes: [lpr-data:/data]       # rw: the snapshot library deletes images
     depends_on:
       db: {condition: service_healthy}
 
@@ -167,7 +187,10 @@ services:
     image: lpr-frontend:1.0
     restart: unless-stopped
     logging: *logging
-    ports: ["${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"]
+    ports:
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"
+      - "${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_TLS_PORT:-8443}:8443"   # HTTPS when deploy/certs has a certificate
+    volumes: ["./certs:/etc/nginx/certs:ro"]
     depends_on:
       backend: {condition: service_healthy}
 

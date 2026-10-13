@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Build a Python service image (backend | consumer) from the repo root.
+# Build a Python service image (backend | consumer | face) from the repo root.
 #   tools/build_service_image.sh backend [--lock]
 # --lock regenerates <service>/requirements.lock inside the pinned base image (tools/docker/make_lock.py).
 set -euo pipefail
-svc="${1:?backend|consumer}"
+svc="${1:?backend|consumer|face}"
 repo="$(cd "$(dirname "$0")/.." && pwd)"
 base="python:3.10.22-slim-bookworm@sha256:5be5aaecb962a41567bc8041f1e9e3432cb085b037fe057f9a562630b2e4b370"
 if [[ "${2:-}" == "--lock" ]]; then

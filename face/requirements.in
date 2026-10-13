@@ -1,0 +1,7 @@
+# Face service (ArcFace embeddings on the CPU). Lock: face/requirements.lock.
+confluent-kafka==2.6.1
+jsonschema==4.23.0
+numpy==1.26.4
+onnxruntime==1.23.2
+opencv-python-headless==4.10.0.84
+pytest==8.3.5

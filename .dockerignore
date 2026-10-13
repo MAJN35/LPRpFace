@@ -26,6 +26,9 @@
 !consumer/lpr_consumer.py
 !consumer/requirements.lock
 !consumer/Dockerfile
+!face/lpr_face.py
+!face/requirements.lock
+!face/Dockerfile
 **/__pycache__
 !frontend/package.json
 !frontend/package-lock.json
@@ -35,5 +38,8 @@
 !frontend/src/**
 !frontend/public/**
 !frontend/nginx.conf
+!frontend/nginx-locations.conf
+!frontend/nginx-tls.conf
+!frontend/40-lpr-tls.sh
 !frontend/Dockerfile
 !frontend/e2e/run.mjs
