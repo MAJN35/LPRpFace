@@ -35,3 +35,6 @@ deepstream/parsers/*.so
 # Frontend build output
 frontend/node_modules/
 frontend/dist/
+
+# local run outputs (events, crops: personal data)
+out/

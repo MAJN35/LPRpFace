@@ -85,6 +85,7 @@ class SourceBin:
         if s.type in ("rtsp", "rtmp", "http", "hls", "file"):
             uri = _make("nvurisrcbin", f"uri-{i}")
             uri.set_property("uri", _encoded_uri(s.uri))
+            uri.set_property("num-extra-surfaces", 4)  # decoder headroom while frames wait downstream
             if s.type == "rtsp":
                 uri.set_property("rtsp-reconnect-interval", RTSP_RECONNECT_S)
                 uri.set_property("select-rtp-protocol", 4 if s.rtsp_transport == "tcp" else 1)
@@ -145,6 +146,9 @@ class SourceBin:
         """nvvideoconvert (ROI crop, RGBA NVMM) -> [videorate max_fps] -> leaky queue -> ghost src."""
         s, i = self.src, self.index
         conv = _make("nvvideoconvert", f"conv-{i}")
+        # More output buffers than the leaky queue can hold: with the default 4 and a 4-deep queue the converter's
+        # pool ran dry, blocking the decoder and rtspsrc ("connection is too slow" on the RTSP server).
+        conv.set_property("output-buffers", 8)
         self.conv = conv
         caps = _make("capsfilter", f"rgba-{i}")
         caps.set_property("caps", Gst.Caps.from_string("video/x-raw(memory:NVMM),format=RGBA"))
@@ -157,7 +161,7 @@ class SourceBin:
         q = _make("queue", f"srcq-{i}")
         if s.is_live:
             q.set_property("leaky", 2)
-            q.set_property("max-size-buffers", 4)
+            q.set_property("max-size-buffers", 2)
             q.set_property("max-size-bytes", 0)
             q.set_property("max-size-time", 0)
         chain.append(q)

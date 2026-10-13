@@ -31,6 +31,7 @@ from gi.repository import GLib, Gst  # noqa: E402
 import pyds  # noqa: E402
 
 from lpr_reader import classes as C  # noqa: E402
+from lpr_reader.decode import iou_matrix  # noqa: E402
 
 from .config import Source  # noqa: E402
 from .sources import SourceBin  # noqa: E402
@@ -39,6 +40,8 @@ log = logging.getLogger("lpr.pipeline")
 NET = 960
 RECONNECT_MIN_S, RECONNECT_MAX_S = 2.0, 60.0
 AUTH_RETRY_MIN_S, AUTH_RETRY_MAX_S = 300.0, 3600.0
+STALL_S = 20.0             # no frame for this long -> "reconnecting" (nvurisrcbin retries every RTSP_RECONNECT_S)
+NEVER_CONNECTED_S = 30.0   # a live source without any frame after this long is rebuilt (backoff)
 
 
 def is_auth_error(text: str) -> bool:
@@ -51,8 +54,8 @@ class AppConfig:
     nvinfer_config: str
     tracker_config: str
     max_batch: int = 4
-    mux_width: int = 1920
-    mux_height: int = 1080
+    mux_width: int = 1920     # square like the 960x960 network input: every aspect ratio keeps its full scale
+    mux_height: int = 1920    # (a 16:9 canvas shrank portrait/4:3 images to ~56 % before the letterbox)
     batched_push_timeout_us: int = 40000
     interval: int = 0
     osd: bool = False                      # draw boxes + Latin plate text, blur faces (output stream)
@@ -86,6 +89,8 @@ class LprPipeline:
         self._next_index = 0
         self._lock = threading.Lock()
         self.best_width: Dict[Tuple[int, int], float] = {}   # (source index, track id) -> best plate width seen
+        self._pending: Dict[Tuple[int, int], FrameItem] = {}  # probe A -> probe B, by (pad index, frame number)
+        self.playing_since: Optional[float] = None
         self.stats = {"frames_inferred": 0, "worker_dropped": 0}
         self._build()
         for s in sources:
@@ -101,7 +106,7 @@ class LprPipeline:
         if el is None:
             raise RuntimeError(f"cannot create {factory}")
         for k, v in props.items():
-            el.set_property(k.replace("_", "-"), v)
+            el.set_property(k.rstrip("_").replace("_", "-"), v)  # async_ -> async
         self.pipeline.add(el)
         return el
 
@@ -138,7 +143,8 @@ class LprPipeline:
         for a, b in zip(chain, chain[1:]):
             if not a.link(b):
                 raise RuntimeError(f"cannot link {a.get_name()} -> {b.get_name()}")
-        q3.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._probe)
+        self.pgie.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._batch_probe(self._detections))
+        q3.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._batch_probe(self._frame))
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
         bus.connect("message", self._on_message)
@@ -157,7 +163,7 @@ class LprPipeline:
             self.bins[idx] = sb
             self.by_id[src.id] = idx
         st = self.state.setdefault(src.id, {"failures": 0, "reconnects": 0})
-        st.update(status="connecting", started_at=time.time(), retry_at=None, frames_in=0, fps_in=0.0)
+        st.update(status="connecting", started_at=time.time(), retry_at=None, frames_in=0, fps_in=0.0, _frames_prev=0)
         self.worker.register(sb)
         if self.pipeline.get_state(0)[1] in (Gst.State.PLAYING, Gst.State.PAUSED):
             sb.bin.sync_state_with_parent()
@@ -282,34 +288,31 @@ class LprPipeline:
         st.update(status="reconnecting", last_error=reason, retry_at=time.time() + delay)
         GLib.timeout_add(int(delay * 1000), self._idle(self._attach, self.configs[sid]))
 
-    # --- probe (streaming thread: metadata only, never blocks) --------------------------------------------------------
-    def _probe(self, _pad, info):
-        buf = info.get_buffer()
-        if buf is None:
+    # --- probes (streaming threads: metadata only, never block) -------------------------------------------------
+    # A (nvinfer src): every detection with its 48 class scores. The tracker drops targets in their first
+    # (tentative) frame, so detections must be read before it - image frames are always first frames.
+    # B (tracker src): track ids are joined to A's detections by box; crops; hand-off to the worker.
+    def _batch_probe(self, handler):
+        def probe(_pad, info):
+            buf = info.get_buffer()
+            if buf is None:
+                return Gst.PadProbeReturn.OK
+            batch = pyds.gst_buffer_get_nvds_batch_meta(hash(buf))
+            l_frame = batch.frame_meta_list
+            while l_frame is not None:
+                fm = pyds.NvDsFrameMeta.cast(l_frame.data)
+                try:
+                    handler(buf, fm)
+                except Exception:
+                    log.exception("probe failed on a frame")
+                l_frame = l_frame.next
             return Gst.PadProbeReturn.OK
-        batch = pyds.gst_buffer_get_nvds_batch_meta(hash(buf))
-        l_frame = batch.frame_meta_list
-        while l_frame is not None:
-            fm = pyds.NvDsFrameMeta.cast(l_frame.data)
-            try:
-                self._frame(buf, fm)
-            except Exception:
-                log.exception("probe failed on a frame")
-            l_frame = l_frame.next
-        return Gst.PadProbeReturn.OK
+        return probe
 
-    def _frame(self, buf, fm):
-        sb = self.bins.get(fm.pad_index)
-        if sb is None:
-            return
-        st = self.state.get(sb.src.id)
-        if st is not None and st.get("status") in ("connecting", "reconnecting", "starting"):
-            st["status"] = "live" if sb.src.is_live else "running"
-            st["failures"] = 0
-        if not fm.bInferDone:
-            return
-        self.stats["frames_inferred"] += 1
-        # nvstreammux scaled the (ROI-cropped) source into mux_width x mux_height, padding right/bottom.
+    def _geometry(self, sb, fm):
+        """-> (image_file, (w, h), (crop_left, crop_top, crop_w, crop_h), mux scale) for mapping mux -> source px.
+        nvstreammux (enable-padding=1) scaled the (ROI-cropped) source into mux_width x mux_height keeping the aspect
+        ratio and CENTERED it (measured: offsets equal (mux - size*scale)/2); see _to_source."""
         if sb.src.is_image:
             hit = sb.image_for_pts(fm.buf_pts)
             image_file, (w, h) = (hit[0], hit[1]) if hit else (None, sb.frame_size)
@@ -318,51 +321,108 @@ class LprPipeline:
             image_file = None
             w, h = sb.frame_size
             cl, ct, cw, ch = sb.crop if sb.crop else (0, 0, w, h)
-        if not cw or not ch:
+        scale = min(self.cfg.mux_width / cw, self.cfg.mux_height / ch) if cw and ch else 0.0
+        return image_file, (w, h), (cl, ct, cw, ch), scale
+
+    def _detections(self, buf, fm):  # probe A
+        sb = self.bins.get(fm.pad_index)
+        if sb is None or not fm.bInferDone:
             return
-        scale = min(self.cfg.mux_width / cw, self.cfg.mux_height / ch)
-        dets, plates = [], []
+        image_file, (w, h), (cl, ct, cw, ch), scale = self._geometry(sb, fm)
+        if not scale:
+            return
+        dets = []
         l_obj = fm.obj_meta_list
         while l_obj is not None:
             om = pyds.NvDsObjectMeta.cast(l_obj.data)
             l_obj = l_obj.next
-            r = om.detector_bbox_info.org_bbox_coords
-            if r.width <= 0:  # tracker-only object (no detection in this frame)
-                continue
-            box = [r.left / scale + cl, r.top / scale + ct, (r.left + r.width) / scale + cl,
-                   (r.top + r.height) / scale + ct]
+            r = om.rect_params
+            mux = [r.left, r.top, r.left + r.width, r.top + r.height]
+            px = (self.cfg.mux_width - cw * scale) / 2   # centered padding
+            py = (self.cfg.mux_height - ch * scale) / 2
+            box = [(mux[0] - px) / scale + cl, (mux[1] - py) / scale + ct,
+                   (mux[2] - px) / scale + cl, (mux[3] - py) / scale + ct]
             mp = om.mask_params
             scores = np.array(mp.get_mask_array(), dtype=np.float32)[:C.NUM_CLASSES].copy() if mp.size >= 192 else None
-            tid = int(om.object_id) if om.object_id != 0xFFFFFFFFFFFFFFFF else -1
-            dets.append({"box": box, "cls": int(om.class_id), "score": float(om.confidence), "scores": scores,
-                         "track_id": tid})
+            dets.append({"box": box, "mux_box": mux, "cls": int(om.class_id), "score": float(om.confidence),
+                         "scores": scores, "track_id": -1})
+        item = FrameItem(fm.pad_index, frame_num=fm.frame_num,
+                         t=fm.ntp_timestamp / 1e9 if fm.ntp_timestamp else time.time(), pts=fm.buf_pts, dets=dets,
+                         frame_size=(w, h), image_file=image_file)
+        with self._lock:
+            self._pending[(fm.pad_index, fm.frame_num)] = item
+            if len(self._pending) > 256:  # frames dropped between the probes must not leak
+                for k in list(self._pending)[:128]:
+                    self._pending.pop(k, None)
+
+    def _frame(self, buf, fm):  # probe B
+        sb = self.bins.get(fm.pad_index)
+        if sb is None:
+            return
+        st = self.state.get(sb.src.id)
+        if st is not None and st.get("status") in ("connecting", "reconnecting", "starting"):
+            st["status"] = "live" if sb.src.is_live else "running"
+            st["failures"] = 0
+        with self._lock:
+            item = self._pending.pop((fm.pad_index, fm.frame_num), None)
+        if item is None:  # not an inferred frame (interval) or not seen by probe A
+            return
+        self.stats["frames_inferred"] += 1
+        # Track ids: tracker plate objects (detector box kept in detector_bbox_info) -> nearest plate detection.
+        plate_dets = [d for d in item.dets if d["cls"] == C.PLATE_ID]
+        l_obj = fm.obj_meta_list
+        while l_obj is not None:
+            om = pyds.NvDsObjectMeta.cast(l_obj.data)
+            l_obj = l_obj.next
             if om.class_id == C.FACE_ID and self.cfg.osd and sb.src.face_blur:
                 om.rect_params.has_bg_color = 1       # opaque privacy mask on the output stream
                 om.rect_params.bg_color.set(0.1, 0.1, 0.1, 1.0)
                 om.rect_params.border_width = 0
             elif om.class_id != C.PLATE_ID:
-                om.rect_params.border_width = 0 if self.cfg.osd else om.rect_params.border_width
-            if om.class_id == C.PLATE_ID:
-                plates.append((om, r, tid))
                 if self.cfg.osd:
-                    om.text_params.display_text = self.worker.osd_text(sb.src.id, tid)
-        item = FrameItem(fm.pad_index, frame_num=fm.frame_num, t=fm.ntp_timestamp / 1e9 if fm.ntp_timestamp else time.time(),
-                         pts=fm.buf_pts, dets=dets, frame_size=(w, h), image_file=image_file)
-        # Evidence crop: only when a plate is larger than any earlier frame of its track (or in image mode).
-        need = [(om, r, tid) for om, r, tid in plates
-                if sb.src.is_image or r.width > self.best_width.get((fm.pad_index, tid), 0.0)]
+                    om.rect_params.border_width = 0
+                continue
+            if om.class_id != C.PLATE_ID or om.object_id == 0xFFFFFFFFFFFFFFFF:
+                continue
+            r = om.detector_bbox_info.org_bbox_coords
+            if r.width <= 0:
+                r = om.rect_params
+            tb = [r.left, r.top, r.left + r.width, r.top + r.height]
+            best, best_iou = None, 0.5
+            for d in plate_dets:
+                iou = float(_iou(tb, d["mux_box"]))
+                if iou >= best_iou:
+                    best, best_iou = d, iou
+            if best is not None:
+                best["track_id"] = int(om.object_id)
+                if self.cfg.osd:
+                    om.text_params.display_text = self.worker.osd_text(sb.src.id, int(om.object_id))
+        # Evidence crop: only when a plate is larger than any earlier frame of its track (every plate in image mode).
+        need = []
+        for k, d in enumerate(plate_dets):
+            mb = d["mux_box"]
+            width = mb[2] - mb[0]
+            key = k if sb.src.is_image else d["track_id"]
+            if sb.src.is_image or (d["track_id"] >= 0 and width > self.best_width.get((fm.pad_index, key), 0.0)):
+                need.append((key, mb, width))
         if need:
             try:
                 surface = pyds.get_nvds_buf_surface(hash(buf), fm.batch_id)
-                for om, r, tid in need:
-                    x1, y1 = max(0, int(r.left)), max(0, int(r.top))
-                    x2, y2 = int(r.left + r.width), int(r.top + r.height)
-                    key = tid if not sb.src.is_image else len(item.crops)
+                for key, mb, width in need:
+                    x1, y1, x2, y2 = (max(0, int(v)) for v in mb)
                     item.crops[key] = np.array(surface[y1:y2, x1:x2], copy=True)
-                    self.best_width[(fm.pad_index, tid)] = r.width
+                    if not sb.src.is_image:
+                        self.best_width[(fm.pad_index, key)] = width
                 pyds.unmap_nvds_buf_surface(hash(buf), fm.batch_id)
             except Exception:
                 log.debug("crop copy failed", exc_info=True)
+        dump = os.environ.get("LPR_DEBUG_DUMP_DIR")
+        if dump:
+            log.info("[debug] %s frame %d pts %d file %s: %d detections, %d plates, tracks %s", sb.src.id,
+                     fm.frame_num, fm.buf_pts, item.image_file, len(item.dets), len(plate_dets),
+                     [d["track_id"] for d in plate_dets])
+        for d in item.dets:
+            d.pop("mux_box", None)
         if not self.worker.offer(item):
             self.stats["worker_dropped"] += 1
 
@@ -404,18 +464,40 @@ class LprPipeline:
         return True
 
     def _health_tick(self):
+        """Per-source health every 2 s. A source that has produced frames is left to nvurisrcbin's own RTSP
+        reconnect (replacing its bin while the camera is down defeats it: a bin attached at runtime whose first
+        connection fails never retries). Only a live source that has never produced a frame is rebuilt, with
+        backoff, since each new bin is a fresh connection attempt."""
         now = time.time()
         for idx, sb in list(self.bins.items()):
             st = self.state.get(sb.src.id)
             if st is None:
                 continue
             prev = st.get("_frames_prev", 0)
-            st["fps_in"] = round((sb.frames_in - prev) / 2.0, 2)
+            st["fps_in"] = round(max(0, sb.frames_in - prev) / 2.0, 2)
             st["_frames_prev"] = sb.frames_in
             st["frames_in"] = sb.frames_in
             st["last_frame_age_s"] = round(now - sb.last_buffer_t, 1) if sb.last_buffer_t else None
-            if sb.src.is_live and st.get("status") == "live" and sb.last_buffer_t and now - sb.last_buffer_t > 20:
-                self._schedule_reconnect(idx, "no frames for 20 s")
+            if sb.src.type == "image_job":
+                if st.get("status") in ("connecting", "starting"):
+                    st["status"] = "idle"
+                continue
+            if not sb.src.is_live:
+                continue
+            if sb.last_buffer_t is None:
+                # count from when the pipeline started playing (the engine load takes ~35 s before that)
+                waited = now - max(st.get("started_at") or now, self.playing_since or now)
+                if waited > NEVER_CONNECTED_S and not st.get("retry_at"):
+                    st["status"] = "no_signal"
+                    self._schedule_reconnect(idx, f"no frames since start ({waited:.0f} s)")
+            elif now - sb.last_buffer_t > STALL_S:
+                if st.get("status") == "live":
+                    log.warning("[%s] no frames for %.0f s; waiting for the source's own reconnect", sb.src.id,
+                                now - sb.last_buffer_t)
+                st["status"] = "reconnecting"
+            elif st.get("status") == "reconnecting":
+                st["status"] = "live"
+                st["reconnects"] = st.get("reconnects", 0) + 1
         return True
 
     def health(self) -> Dict[str, Any]:
@@ -427,8 +509,14 @@ class LprPipeline:
         GLib.timeout_add(500, lambda: (self.worker.tick(), True)[1])
         if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
             raise RuntimeError("pipeline refused to start")
+        self.pipeline.get_state(Gst.CLOCK_TIME_NONE)  # wait until PLAYING (engine loaded)
+        self.playing_since = time.time()
         try:
             self.loop.run()
         finally:
             self.pipeline.set_state(Gst.State.NULL)
             self.worker.finish()
+
+
+def _iou(a, b) -> float:
+    return float(iou_matrix(a, b)[0, 0])

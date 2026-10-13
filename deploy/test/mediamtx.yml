@@ -13,10 +13,10 @@ api: no
 metrics: no
 paths:
   cam-01:                # H.264 1920x1080 25 fps, like cam-01
-    runOnInit: ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i /videos/test_h264.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam-01
+    runOnInit: ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i /videos/test_h264.mp4 -c copy -rtsp_transport tcp -f rtsp rtsp://127.0.0.1:8554/cam-01
     runOnInitRestart: yes
   cam-02:                # H.265 2560x1440 20 fps, like cam-02
-    runOnInit: ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i /videos/test_h265.mp4 -c copy -f rtsp rtsp://127.0.0.1:8554/cam-02
+    runOnInit: ffmpeg -hide_banner -loglevel error -re -stream_loop -1 -i /videos/test_h265.mp4 -c copy -rtsp_transport tcp -f rtsp rtsp://127.0.0.1:8554/cam-02
     runOnInitRestart: yes
   lpr-out: {}            # published by the DeepStream app (LPR_OUTPUT_RTSP)
   all_others:

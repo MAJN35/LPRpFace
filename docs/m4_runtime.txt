@@ -1,0 +1,26 @@
+# M4 runtime test 2026-10-13T11:01:21Z
+mediamtx (test RTSP server) up
+## 1. three sources at start (file loop + RTSP H.264 + broken RTSP), after 60 s
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=0; cam-01: connecting fps_in=26.0 frames=347 reconnects=0; video-loop: connecting fps_in=0.0 frames=30 reconnects=0
+   worker: {'frames': 0, 'reads': 0, 'events': 0, 'dedup_suppressed': 0, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 0, 'worker_dropped': 0}
+## 2. runtime add cam-02 (RTSP H.265 2560x1440)
+   added
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=2; cam-01: live fps_in=25.0 frames=1949 reconnects=0; cam-02: live fps_in=20.0 frames=1197 reconnects=0; video-loop: running fps_in=2.5 frames=202 reconnects=0
+   worker: {'frames': 210, 'reads': 165, 'events': 14, 'dedup_suppressed': 112, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 210, 'worker_dropped': 0}
+## 3. runtime remove cam-02
+   removed
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=3; cam-01: live fps_in=24.5 frames=2749 reconnects=0; video-loop: running fps_in=3.5 frames=337 reconnects=0
+   worker: {'frames': 321, 'reads': 244, 'events': 17, 'dedup_suppressed': 176, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 321, 'worker_dropped': 0}
+## 4. RTSP disconnect: stop the RTSP server for 40 s
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=4; cam-01: reconnecting fps_in=0.0 frames=2880 reconnects=0; video-loop: running fps_in=9.0 frames=710 reconnects=0
+   worker: {'frames': 485, 'reads': 364, 'events': 20, 'dedup_suppressed': 197, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 485, 'worker_dropped': 0}
+   RTSP server back
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: reconnecting fps_in=0.0 frames=0 reconnects=5; cam-01: live fps_in=23.5 frames=4479 reconnects=1; video-loop: running fps_in=3.5 frames=1277 reconnects=0
+   worker: {'frames': 825, 'reads': 621, 'events': 32, 'dedup_suppressed': 333, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 825, 'worker_dropped': 0}
+## 5. image job through the control API
+   job done events 1 plate read
+## 6. stop (SIGTERM)
+   2026-10-13 11:07:10,558 INFO lpr: final stats: {'frames': 884, 'reads': 665, 'events': 34, 'dedup_suppressed': 367, 'small_plates_skipped': 0, 'invalid_events': 0, 'errors': 0, 'queue': 0, 'open_tracks': 0, 'emitter': {'emitted': 34, 'dropped_queue_full': 0, 'jsonl_ok': 34, 'jsonl_failed': 0}}
+## events per source: {('video-loop', 'plate.recognized'): 14, ('cam-01', 'plate.recognized'): 12, ('cam-02', 'plate.recognized'): 7, ('api-images', 'plate.recognized.image'): 1}
+   with crop: 33 of 34 | valid: 34 | source URIs redacted: True
+# done
