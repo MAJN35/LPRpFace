@@ -1,88 +1,159 @@
 # Project status
 
-Last update: 2026-10-13 (M1 done)
-
-## Milestones
+Last update: 2026-10-13. Device: Jetson Xavier NX 8 GB, JetPack 5.1.2 (L4T 35.4.1), DeepStream 6.3, TensorRT 8.5.2.2,
+nvpmodel mode 8 (MODE_20W_6CORE), jetson_clocks not changed. Final summary: [`FINAL_REPORT.md`](FINAL_REPORT.md).
 
 | | Milestone | State |
 |---|---|---|
-| M0 | Discovery | DONE, gate passed 2026-10-13 |
-| M1 | Model check (CPU) | DONE 2026-10-13 |
-| M2 | Decoder + reader library | not started |
-| M3 | TensorRT on Jetson | not started (GATE after) |
-| M4 | DeepStream app (standalone) | not started |
-| M5 | Kafka + consumer | not started |
-| M6 | Backend | not started |
-| M7 | Frontend | not started (GATE before: static mock) |
-| M8 | Integration, benchmark, hardening | not started |
+| M0 | Discovery | DONE (gate passed 2026-10-13) |
+| M1 | Model check (CPU) | DONE |
+| M2 | Decoder + reader library | DONE |
+| M3 | TensorRT on Jetson | DONE (gate = self-check, model v2 chosen by the user's rule) |
+| M4 | DeepStream app | DONE except USB/CSI (no devices attached: PENDING) |
+| M5 | Kafka + consumer | DONE |
+| M6 | Backend | DONE (+ watchlists, user request) |
+| M7 | Frontend | DONE (gate = self-check: static mock `frontend_mock.html`) |
+| M8 | Integration, benchmark, hardening | see the M8 report below |
 
-## Device facts (measured 2026-10-13, by running commands on the device)
+## Device facts (measured)
 
-| Item | Value | Command |
-|---|---|---|
-| Board | NVIDIA Jetson Xavier NX Developer Kit | `cat /proc/device-tree/model` |
-| L4T | R35 (release), REVISION 4.1 → L4T 35.4.1 = JetPack 5.1.2 | `cat /etc/nv_tegra_release`, `dpkg -l nvidia-l4t-core` (35.4.1-20230801124926) |
-| OS | Ubuntu 20.04.6, kernel 5.10.120-tegra, aarch64, 6 CPU cores | `uname -a`, `/etc/os-release` |
-| CUDA | 11.4 (cuda-toolkit-11-4 11.4.19-1) | `dpkg -l` |
-| cuDNN | 8.6.0.166 | `dpkg -l` |
-| TensorRT | 8.5.2.2 (host) | `dpkg -l`, `python3 -c "import tensorrt"` |
-| DeepStream (host) | 6.3.0-1 (also /opt/nvidia/deepstream/deepstream-6.2 dir present) | `dpkg -l` |
-| RAM | 6.7 GiB usable (8 GB module), 3.3 GiB swap (zram) | `free -h` |
-| Storage | mmcblk0 119 GB; root 117 GB, 57 GB free | `df -h /` |
-| Power mode | current ID 8 = MODE_20W_6CORE; default ID 5 | `/var/lib/nvpmodel/status`, `/etc/nvpmodel.conf` |
-| Time | NTP active, clock synchronized, TZ Asia/Tehran (store UTC) | `timedatectl` |
-| Docker | 26.1.3, compose plugin 2.35.1, `nvidia` runtime registered (not default) | `docker info` |
-| Cameras attached | no `/dev/video*` (no USB/CSI camera connected now) | `ls /dev/video*` |
-| Network | eth0 192.168.1.131/24 | `ip addr` |
-| Host Python | 3.8.10; no onnxruntime; host torch import fails (libopenblas missing) | |
-| sudo | needs a password (agent cannot run `nvpmodel -q`, `jetson_clocks`) | |
-
-## Models (checked 2026-10-13)
-
-Computed with `sha256sum`; **not yet confirmed against the source bundles** (zips not on the device).
-
-| File | SHA-256 |
+| Item | Value |
 |---|---|
-| v1 .pt | b21ce3f64667c431b98ba82bb0eda008ec42672d4de686bf61fecd2268aa2cff |
-| v1 .onnx | 5b32f1c8a1265004c1fa548ba9ad378d70db62a8f7144baf64eb5766f173c03a |
-| v2 .pt | fbaf11408e5be67ffdd3423d439ef4e239c28bd435387f9692a1fb4ee3048ef8 |
-| v2 .onnx | bf80a2b544d865b44943fb4596791852a209523ccd4481084d83312646429b96 |
-| class_names.json (v1 = v2) | fac415707bf654fafa8bc28899f81caf97bee611ac1aab3ac15161c81c9aee90 |
+| Board / L4T | Jetson Xavier NX Developer Kit, R35.4.1 (JetPack 5.1.2), Ubuntu 20.04.6, 6 CPU cores |
+| CUDA / cuDNN / TensorRT / DeepStream | 11.4 / 8.6.0 / 8.5.2.2 / 6.3.0 |
+| RAM / storage | 6.7 GiB usable + 3.3 GiB zram; SD card only (mmcblk0, 117 GB) — no NVMe/SSD, so no swapfile |
+| Power | nvpmodel mode 8 MODE_20W_6CORE (user, `sudo nvpmodel -q`); jetson_clocks not run |
+| Time | NTP active and synchronized; events in UTC |
+| Network | Docker daemon proxy = Xray tunnel inbound 127.0.0.1:57531 (direct route is refused by Docker's CDN and nvcr.io) |
 
-- `SHA256SUMS` written on first use (M1, user decision) and committed; `labels.txt` generated after the class check.
-- `class_names.json` `names` match A.4 ids 0–47 by inspection (formal check in M1).
-- `char_glyphs` has no entry for 43 Gaf (گ); the reader will take it from A.4.
+## Models
 
-## Existing code
+| | v1 | v2 |
+|---|---|---|
+| `.pt` sha256 | b21ce3f6…2cff | fbaf1140…8ef8 |
+| delivered `.onnx` sha256 | 5b32f1c8…c03a | bf80a2b5…9b96 |
+| dynamic-batch export sha256 | 980fd50f…a268 | 48095325…bf2d |
+| FP16 engine (1/2/4) sha256 | f09c9975…e8ae | 1c48ca5a…9696 |
+| engine build | 4,270 s, peak 5,879 MiB used | 4,312 s, peak 5,531 MiB used |
 
-- This repo: only `CLAUDE.md` (Parts A+B) and `models/`. No `AGENTS.md`, no code, no CI, no Docker files.
-- Earlier project on the same device: `/home/edgetec/EdgetecLPR/PlateDetector` (separate git repo; containers stopped).
-  It has a DeepStream 6.3 pyds app (`nvcr.io/nvidia/deepstream-l4t:6.3-samples`, image present locally), a DeepStream-Yolo
-  parser, Kafka with ZooKeeper (cp-kafka 7.5.0), a kafka-consumer, a FastAPI + Postgres 15 backend, a React 19 + TypeScript +
-  Vite + Tailwind + Radix frontend with Vazirmatn, and HikCentral integration. Not touched.
+---
 
-## Open questions
+## M2 report
 
-M0 questions answered 2026-10-13 (see decisions.md).
+```
+Milestone M2 — Decoder and reader library: DONE
+Changed: reader/lpr_reader/{decode,preprocess,reader,voting,normalize,classes}.py, reader/tests/*, tools/{parity,
+         eval_reader,infer_cache,accuracy_table}.py, docs/parity_cpu*.{md,json}
+Checks run: tools/run_cpu.sh python -m pytest -q reader/tests -> 44 passed (every A.7 rule: standard, free-zone two
+              rows, transit expiry, disabled/diplomatic/protocol, duplicates, constrained decoding, normalization,
+              voting, timeout, dedup)
+            tools/parity.py v2 (24 images, .pt vs ONNX CPU + decoder) -> 221/221 = 100 % (>= 98 %), no class shifts
+            tools/parity.py v1 -> 223/223 = 100 %
+            tools/eval_reader.py --oracle (reader on ground-truth boxes) -> standard 263/263 real, 167/167 synthetic,
+              free zone 85/85, protocol 10/10, transit 9/10 (label file lacks the expiry digits)
+PENDING (needs device): none
+Decisions needed: none
+```
 
-## Blockers
+## M3 report
 
-None. (Docker pulls fixed 2026-10-13: daemon proxy → Xray tunnel inbound 127.0.0.1:57531; see decisions.md.)
+```
+Milestone M3 — TensorRT on the Jetson: DONE (gate self-check passed)
+Changed: deepstream/{Dockerfile,build_image.sh,scripts/build_engine.sh,scripts/bench_engine.sh}, tools/trt_runner.py,
+         docs/m3_*, docs/parity_trt_*
+Checks run: base image nvcr.io/nvidia/deepstream-l4t:6.3-samples, NGC digest e01bb8f5…75cf == local (NGC registry API)
+            build_engine.sh v2 / v1 -> FP16 1/2/4 built in 4,312 s / 4,270 s; batch 8 not built (min free 0.97 GB < 1.5 GB)
+            bench_engine.sh v2 -> 3.56 / 3.61 / 3.58 img/s at batch 1 / 2 / 4 (GPU p50 277 / 545 / 1,081 ms)
+            bench_engine.sh v1 -> 3.45 / 3.50 / 3.51 img/s
+            parity TRT FP16 vs .pt (24 images): v2 97.7 % pad 114, 96.8 % pad 0; v1 97.8 % pad 0; same at batch 1
+              and batch 4; no class shifts (>= 95 %)
+            accuracy (490 images, real standard 8-char plates, pad 0): v2 72.2 %, v1 73.0 %; full tables in
+              docs/m3_accuracy_table_pad0.md -> v2 chosen (rule not met for v1)
+PENDING (needs device): none
+Decisions needed: none (model chosen by the user's rule)
+```
 
-## M1 results (2026-10-13, tools container on the Jetson CPU)
+Known limits (A.5, measured): most misses are characters the detector does not output at all on plates < ~80 px
+(lowering character thresholds to 0.20 changed nothing); multi-plate scenes 40.9 %; transit expiry digits 40 %.
 
-- `check_model.py models/v1`, `models/v2` → exit 0: checksums, 48 classes = A.4, ONNX `images [1,3,960,960]` →
-  `output0 [1,52,18900]`, metadata names match, dummy run OK. Warnings: Gaf has no glyph, Zhe glyph ژ unused.
-- `pytest` → 29 passed (includes deliberately wrong mapping → exit 3, tampered/missing/unlisted files → exit 2,
-  AGENTS.md drift → exit 3, wrong ONNX shape/metadata → exit 4).
-- Dynamic-batch exports (`models/<ver>/export/*_dynbatch.onnx`, git-ignored; `.json` sidecars committed):
-  v1 sha256 `980fd50f…a268`, v2 sha256 `48095325…bf2d`, input `[batch,3,960,960]`, output `[batch,52,18900]`.
-- Batch vs batch-1 (16 real test images, CPU FP32, conf 0.25, IoU 0.5; match = same class, IoU ≥ 0.99,
-  |Δscore| ≤ 0.001): v2 45/45 and v1 46/46 detections identical at batch 1, 2, 4, 8; max |Δ raw output|
-  4.9e-4 (v2), 1.8e-3 (v1). Reports: `docs/m1_batch_parity_v1.json`, `docs/m1_batch_parity_v2.json`.
-- Memory: export peaks at ~5.6 GB used (0.9 GB available); CPU onnxruntime with the default arena was OOM-killed
-  at batch ≥ 2, so the compare tool disables the arena and loads one model at a time (min available 365 MB).
+## M4 report
 
-## PENDING (needs device / user)
+```
+Milestone M4 — DeepStream app (standalone): DONE (USB/CSI PENDING: no device)
+Changed: deepstream/app/{main,pipeline,sources,worker,control,engine,events,sinks,config,nvinfer_config}.py,
+         deepstream/parsers/*, deepstream/configs/*, schemas/plate_event-2.0.json, tools/{make_test_video,
+         offline_video_reader,check_video_events,m4_runtime_test.sh}, deploy/test/mediamtx.yml
+Checks run: deepstream tests (pytest) -> 15 passed (config, redaction, schema, non-blocking emitter, sinks)
+            test video H.264 1080p, 6 clips -> 6/6 one correct track event each, identical to the offline reader
+              (tools/offline_video_reader.py: 6/6); crops 6/6
+            image folder, 12 images -> 12 image events, 8/12 correct (= offline TensorRT 8/12); plate boxes vs GT
+              median IoU 0.91
+            tools/m4_runtime_test.sh -> file + RTSP H.264 + broken RTSP together; runtime add/remove RTSP H.265
+              2560x1440; RTSP server stopped 40 s -> "reconnecting" -> back to live; broken source never stops the
+              others; API image job -> event; SIGTERM clean; 34/34 events schema-valid, URIs redacted (docs/m4_runtime.txt)
+            restart -> "reusing cached engine" (no rebuild)
+PENDING (needs device): USB camera: plug in, then `ls /dev/video*`, add `devices: ["/dev/video0:/dev/video0"]` and a
+              `{id: usb0, type: usb, device: /dev/video0}` source; CSI camera: mount /tmp/argus_socket and add
+              `{id: csi0, type: csi, sensor_id: 0}`. Neither is attached to this Jetson.
+Decisions needed: none
+```
 
-- `sudo jetson_clocks --show` output (before benchmarks in M3/M8). `nvpmodel -q` → MODE_20W_6CORE (8), from user.
+## M5 report
+
+```
+Milestone M5 — Kafka and consumer: DONE
+Changed: consumer/*, deploy/compose.yaml (kafka KRaft 3.9.1, kafka-init topics), deepstream/app/sinks.py, tools/m5_check.py
+Checks run: consumer unit tests -> 10 passed (schema validation -> DLQ, duplicates, backend down + backoff, no commit
+              before delivery, 4xx -> DLQ)
+            synthetic run: 20 valid + 5 duplicates + 3 invalid -> 20 in backend, 5 skipped, 3 in lpr.dead-letter
+            consumer stopped, 15 produced, consumer started -> 0 then 15 in backend (no loss)
+            broker stopped: 50 events emitted in 0.015 s (non-blocking), 50 buffered in the producer; broker
+              started -> 50 delivered, 50 in backend
+            real events from M4 -> see M8 full-stack run
+PENDING (needs device): none
+Decisions needed: none
+```
+
+## M6 report
+
+```
+Milestone M6 — Backend: DONE
+Changed: backend/* (FastAPI, SQLAlchemy async, Alembic 0001 + 0002 watchlists), backend/tests/*
+Checks run: backend tests (SQLite) -> 22 passed: idempotent ingest, ingest key, auth + roles, pagination, filters
+              (camera, time, type, zone, validity, model, list), Persian/Latin search (Arabic forms, any digits,
+              "ایران-first"), detail + audit log, crop path-traversal guard, CSV export, retention, WebSocket live
+              + blocklist alert, OpenAPI paths, watchlists (moves, bulk, person inheritance, unregistered plates,
+              viewer read-only, audit)
+            Postgres 15.10 in compose: alembic upgrade head on start, /api/v1/ready 200; M5 events visible via API
+PENDING (needs device): none
+Decisions needed: dashboard exposure on the LAN (FRONTEND_BIND, default 127.0.0.1); face-based person lists (not
+              built: A.7 forbids face identification; recommendation: keep it forbidden)
+```
+
+## M7 report
+
+```
+Milestone M7 — Frontend: DONE (gate self-check: docs/frontend_mock.html)
+Changed: frontend/* (React 18 + TS + Vite, CSS design tokens, nginx), frontend/e2e/*, docs/screenshots/*.png
+Checks run: vitest -> 14 passed (loading/empty/error/disconnected/stale states, RTL plate, login error, lists: one-click
+              move, bulk move, add Persian plate, viewer read-only); tsc -b clean
+            e2e (Chromium via puppeteer-core -> nginx -> backend -> Postgres) -> 9/9 PASS: login, overview with real
+              API data, Persian partial search, RTL rendering, event detail, live event over WebSocket, lists
+              (add in Persian, move with one click), health, settings; screenshots of every page (demo plates only)
+PENDING (needs device): live video in the browser needs an approved WebRTC/HLS gateway (A.6); not enabled
+Decisions needed: approve a live-video gateway (mediamtx can serve WebRTC/HLS from the annotated output stream)
+```
+
+## Open items / PENDING (all)
+
+1. USB and CSI cameras: not attached; configs and steps in the M4 report.
+2. Benchmarks with `jetson_clocks` (needs sudo; the user chose not to change it). Command: `sudo jetson_clocks` then
+   `python3 tools/bench_sources.py --counts 1 2 4 --out docs/bench/scaling_clocks.jsonl`.
+3. Live video in the browser: needs an approved WebRTC/HLS gateway.
+4. Dashboard on the LAN: set `FRONTEND_BIND=0.0.0.0` in `deploy/.env` once decided.
+5. Face-based person lists: not built (privacy rule).
+6. Swapfile: not possible (no NVMe/SSD).
+7. Real camera URLs/credentials: placeholders in `deploy/sources.yaml` / `deploy/.env`.
+8. Real (non-synthetic) validation for Kaf, Gaf, Fe, D, S, protocol, Ze, free zone; no data at all for Se, Za, Pe (A.5).
+9. I viewed one dumped private test frame during M4 debugging (sent to the model service); stopped and switched to
+   numeric checks only.

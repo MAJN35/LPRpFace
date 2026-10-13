@@ -218,3 +218,46 @@ Format: date, decision, reason, alternatives, source.
 - **Schema:** migration `0002_watchlists` (tables `persons`, `plates`; columns `events.list_status`,
   `events.person_id`). Undo: `alembic downgrade 0001` and remove `backend/app/routes/lists.py`, `frontend/src/pages/Lists.tsx`.
 - **Checks:** backend 22/22 tests (8 new watchlist tests), frontend 14/14 (4 new), e2e extended.
+
+## 2026-10-13: Production model v2 (M3 gate, user rule)
+
+- **Decision:** deploy **v2** (FP16, profile 1/2/4). Rule: v1 only if it beats v2 on exact plate-string accuracy by
+  ≥ 2 points overall or ≥ 5 points on a group with ≥ 20 plates. Measured (TensorRT FP16, pad 0 = DeepStream
+  preprocessing, real standard plates): v2 72.2 % (190/263), v1 73.0 % (192/263), +0.8; groups ≥ 20 plates: day
+  +0.9, night 0, multi-plate 0, Shahab close-ups +2.5 (40 plates); synthetic standard −1.2, free zone −1.2. No
+  threshold reached. v1 stays buildable (`MODEL_VERSION=v1`, engine cached). Tables: `docs/m3_accuracy_table_pad0.md`.
+- **Parity:** CPU `.pt` vs ONNX + decoder: v2 221/221, v1 223/223 (100 %). TensorRT FP16 vs `.pt`: v2 97.7 % (pad
+  114) / 96.8 % (pad 0); v1 97.8 % (pad 0); identical at batch 1 and batch 4; no class shifts. Pad 0 vs 114 changes
+  real accuracy by −0.4 (v2) / 0.0 (v1) points, so DeepStream's black padding is kept.
+- **Throughput:** v1 3.45–3.51 img/s, v2 3.56–3.61 img/s (batch 1–4).
+
+## 2026-10-13: DeepStream app design findings (M4)
+
+- **Two probes.** NvSORT does not output targets in their first (tentative) frame, so detections read after the
+  tracker lost every image frame and the first frame of each track. Probe A (nvinfer src) reads all detections and
+  class-score vectors; probe B (tracker src) joins track ids by box and copies crops. Images: 0 → 12 of 12 read.
+- **Square mux canvas (1920×1920).** A 16:9 canvas shrank portrait/4:3 images to ~56 % before nvinfer's letterbox;
+  the pipeline then read 5/12 test images vs 8/12 offline. With a square canvas it reads 8/12, the same as offline
+  TensorRT. 16:9 cameras keep the same scale. Undo: `AppConfig.mux_height`.
+- **Legacy nvstreammux centers padded frames** (measured: offsets = (mux − size×scale)/2). Box mapping fixed; event
+  plate boxes vs ground truth: median IoU 0.91 (min 0.77) on the 12 test images.
+- **RTSP back-pressure.** nvvideoconvert has 4 output buffers by default; a 4-deep leaky queue could hold all of
+  them, blocking the decoder and rtspsrc (mediamtx: "connection is too slow, discarding frames"), and the stream
+  broke every ~40 s. Now: converter `output-buffers=8`, leaky queue 2, decoder `num-extra-surfaces=4`; cameras are
+  received at full rate (25/20 fps) while inference takes what it can.
+- **Reconnect rule.** nvurisrcbin's own RTSP reconnect (every 5 s) recovers streams that were connected; replacing
+  its bin while the camera is down defeated it (a bin attached at runtime whose first connection fails never
+  retries). So: a source that has produced frames is left to nvurisrcbin (health shows "reconnecting"); only a source
+  that never produced a frame is rebuilt with backoff (2 s → 60 s; authentication errors 5 min → 1 h).
+- **Evidence crops on the CPU.** pyds 1.1.8 has no object-encoder (`nvds_obj_enc_*`) bindings, so the GPU encoder of
+  A.7 is not reachable from Python. The probe copies only the plate region from the mapped RGBA frame, and only when
+  a track gets a larger plate (or once per image); the worker encodes it with OpenCV. Alternative: a C++ probe.
+- **Images decoded on the CPU** (OpenCV, JPEG and PNG) into an appsrc, one buffer per image with its own caps;
+  `nvjpegdec` would need a per-image decoder renegotiation. Image jobs are not real-time, so this is acceptable.
+- **Face blur = opaque mask** drawn by nvdsosd on the output stream (fill colour, alpha 1), the strongest privacy
+  setting; only active when the OSD/RTSP output is enabled. No face crops are stored.
+- **ROI = rectangular crop** (bounding box of the polygon) with nvvideoconvert `src-crop` before the muxer; boxes are
+  mapped back to full-frame pixels. nvdspreprocess was not used (it needs a custom tensor-preparation library to
+  reproduce the letterbox).
+- **max_fps** = `videorate drop-only` after decode; **interval** = nvinfer `interval`.
+- **Control API** binds 0.0.0.0 inside the container network only (never published); dev runs bind 127.0.0.1.

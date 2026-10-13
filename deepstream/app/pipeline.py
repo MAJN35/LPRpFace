@@ -13,6 +13,7 @@ only when the last source ends and ``exit_on_eos`` is set.
 """
 from __future__ import annotations
 
+import collections
 import logging
 import os
 import queue
@@ -91,6 +92,9 @@ class LprPipeline:
         self.best_width: Dict[Tuple[int, int], float] = {}   # (source index, track id) -> best plate width seen
         self._pending: Dict[Tuple[int, int], FrameItem] = {}  # probe A -> probe B, by (pad index, frame number)
         self.playing_since: Optional[float] = None
+        # per source: inferred frames (for fps_out) and recent latencies muxer arrival -> after tracker (ms)
+        self.inferred: Dict[str, int] = collections.Counter()
+        self.latency_ms: Dict[str, collections.deque] = collections.defaultdict(lambda: collections.deque(maxlen=600))
         self.stats = {"frames_inferred": 0, "worker_dropped": 0}
         self._build()
         for s in sources:
@@ -368,6 +372,9 @@ class LprPipeline:
         if item is None:  # not an inferred frame (interval) or not seen by probe A
             return
         self.stats["frames_inferred"] += 1
+        self.inferred[sb.src.id] += 1
+        if fm.ntp_timestamp:
+            self.latency_ms[sb.src.id].append((time.time() - fm.ntp_timestamp / 1e9) * 1000.0)
         # Track ids: tracker plate objects (detector box kept in detector_bbox_info) -> nearest plate detection.
         plate_dets = [d for d in item.dets if d["cls"] == C.PLATE_ID]
         l_obj = fm.obj_meta_list
@@ -476,6 +483,14 @@ class LprPipeline:
             prev = st.get("_frames_prev", 0)
             st["fps_in"] = round(max(0, sb.frames_in - prev) / 2.0, 2)
             st["_frames_prev"] = sb.frames_in
+            done = self.inferred.get(sb.src.id, 0)
+            st["fps_out"] = round(max(0, done - st.get("_inferred_prev", 0)) / 2.0, 2)   # frames inferred per s
+            st["_inferred_prev"] = done
+            st["frames_inferred"] = done
+            lat = sorted(self.latency_ms.get(sb.src.id, ()))
+            if lat:
+                st["latency_ms_p50"] = round(lat[len(lat) // 2], 1)
+                st["latency_ms_p95"] = round(lat[min(len(lat) - 1, int(len(lat) * 0.95))], 1)
             st["frames_in"] = sb.frames_in
             st["last_frame_age_s"] = round(now - sb.last_buffer_t, 1) if sb.last_buffer_t else None
             if sb.src.type == "image_job":
