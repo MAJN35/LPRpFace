@@ -1,13 +1,12 @@
 import { ChevronLeft, ChevronRight, Download, Eraser, RefreshCw, Search } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { EventSummary, Page, auth, query } from "../api";
+import { Page, auth, query } from "../api";
 import { Btn } from "../components/Button";
 import { ListBadge, Plate, PlateType, StateView, Validity, fmtTime, useApi } from "../components/ui";
 import { useI18n } from "../i18n";
 import { PlateDraft, PlateSearch, emptyDraft } from "../plate/PlateSearch";
-import { PlateView } from "../plate/PlateView";
-import { FORMATS, PlateFormat, eventPlate, formatById, isComplete, plateQuery, valuesFromTokens } from "../plate/formats";
+import { FORMATS, PlateFormat, formatById, isComplete, plateQuery, valuesFromTokens } from "../plate/formats";
 
 const LIMIT = 25;
 type F = { q: string; camera_id: string; from: string; to: string; is_valid: string; model_version: string; list_status: string };
@@ -36,18 +35,6 @@ function toUrl(f: F, plate: PlateDraft, offset: number) {
   if (plate.zone) out.zone = plate.zone;
   if (offset) out.offset = String(offset);
   return out;
-}
-
-function ResultPlate({ e }: { e: EventSummary }) {
-  const { t } = useI18n();
-  const p = eventPlate(e);
-  if (!p) return <Plate e={e} />;
-  return (
-    <span className="plate">
-      <PlateView format={p.format} values={p.values} zone={e.zone} label={`${t("col.plate")} ${e.plate_string_fa}`} />
-      <span className="lat" dir="ltr">{e.plate_string_latin}{e.zone ? ` · ${e.zone}` : ""}</span>
-    </span>
-  );
 }
 
 export function History() {
@@ -104,7 +91,7 @@ export function History() {
         <StateView hasData={!!page.data} loading={page.loading} error={page.error} empty={!page.data?.items.length} emptyText={t("hist.noMatch")} onRetry={page.reload}>
           <div className="table-wrap"><table><thead><tr><th>{t("col.time")}</th><th>{t("col.camera")}</th><th>{t("col.plate")}</th><th>{t("col.type")}</th><th>{t("col.list")}</th><th>{t("col.model")}</th><th>{t("col.confidence")}</th><th>{t("col.status")}</th></tr></thead><tbody>
             {page.data?.items.map((e) => (
-              <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><ResultPlate e={e} /></td>
+              <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><Plate e={e} /></td>
                 <td><PlateType type={e.plate_type} /></td><td><ListBadge status={e.list_status} /></td><td>{e.model_version}</td><td>{num((e.confidence * 100).toFixed(0))} %</td><td><Validity e={e} /></td></tr>
             ))}
           </tbody></table></div>

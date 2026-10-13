@@ -2,10 +2,10 @@ import { Monitor, Moon, Play, Plus, RefreshCw, Square, Sun, Trash2, Upload } fro
 import { FormEvent, useState } from "react";
 import { ApiError, Camera, api } from "../api";
 import { Btn, useActions } from "../components/Button";
-import { StateView, useApi } from "../components/ui";
+import { Plate, StateView, useApi } from "../components/ui";
 import { Key, useI18n } from "../i18n";
 
-type Job = { job_id: string; status?: string; events?: { plate_string_fa: string; plate_string_latin: string; is_valid: boolean | null }[]; error?: string };
+type Job = { job_id: string; status?: string; events?: { plate_string_fa: string; plate_string_latin: string; plate_type?: string; zone?: string | null; is_valid: boolean | null }[]; error?: string };
 
 export function Settings({ role, onTheme }: { role: string; onTheme: (t: "light" | "dark" | "auto") => void }) {
   const { t, num } = useI18n();
@@ -78,7 +78,7 @@ export function Settings({ role, onTheme }: { role: string; onTheme: (t: "light"
           <form onSubmit={upload} className="row"><label>{t("set.fileHint")}<input name="img" type="file" accept="image/jpeg,image/png" required /></label><Btn type="submit" icon={Upload} state={job && !job.events && job.status !== "error" ? "busy" : "idle"}>{t("set.upload")}</Btn></form>
           {job && <div className="inset" style={{ padding: 12, marginTop: 12 }} role="status">
             {job.status === "error" ? <span className="bad">{job.error}</span> : !job.events ? t("set.processing") :
-              job.events.map((ev, i) => <div key={i} className="plate"><span className="fa inset" lang="fa" dir="rtl">{ev.plate_string_fa || "—"}</span><span className="lat" dir="ltr">{ev.plate_string_latin}</span></div>)}
+              job.events.map((ev, i) => <div key={i}><Plate e={{ ...ev, zone: ev.zone ?? null }} /></div>)}
           </div>}
         </section>
       )}

@@ -2,6 +2,8 @@ import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { LucideIcon, RotateCw, ShieldBan, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { ApiError, EventSummary, LISTS, ListStatus, api } from "../api";
 import { ActionState, Btn } from "./Button";
+import { PlateView } from "../plate/PlateView";
+import { eventPlate } from "../plate/formats";
 import { Key, useI18n } from "../i18n";
 
 // Fetch state for a path; re-runs when `path` changes or reload() is called; optional polling.
@@ -67,14 +69,18 @@ export function StaleBanner({ updatedAt, maxAgeMs, what }: { updatedAt: number |
   );
 }
 
-// Persian plate right-to-left (isolated) next to its Latin form.
-export function Plate({ e }: { e: Pick<EventSummary, "plate_string_fa" | "plate_string_latin" | "zone"> }) {
+// A plate as the plate shape (as in the search panel). Reads that fit no known layout (invalid, protocol) are
+// shown as Persian text only; the Latin form stays available to screen readers and as the tooltip.
+export function Plate({ e }: { e: Pick<EventSummary, "plate_string_fa" | "plate_string_latin" | "zone"> &
+  { plate_type?: string; is_valid?: boolean | null } }) {
   const { t } = useI18n();
   if (!e.plate_string_fa && !e.plate_string_latin) return <span className="muted">{t("common.noRead")}</span>;
+  const p = eventPlate(e);
+  if (p) return <PlateView format={p.format} values={p.values} zone={e.zone} label={`${t("col.plate")} ${e.plate_string_latin}`} />;
   return (
-    <span className="plate">
-      <span className="fa inset" lang="fa" dir="rtl">{e.plate_string_fa}</span>
-      <span className="lat" dir="ltr">{e.plate_string_latin}{e.zone ? ` · ${e.zone}` : ""}</span>
+    <span className="plate" title={e.plate_string_latin}>
+      <span className="fa inset" lang="fa" dir="rtl">{e.plate_string_fa || e.plate_string_latin}</span>
+      <span className="sr-only">{e.plate_string_latin}</span>
     </span>
   );
 }
@@ -121,7 +127,7 @@ export function ListSwitch({ value, onChange, disabled, label, pending = null, s
   const { t } = useI18n();
   const name = useListLabel();
   return (
-    <div role="group" aria-label={t("list.for", { label })} style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
+    <div role="group" aria-label={t("list.for", { label })} style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
       {LISTS.map((s) => (
         <Btn key={s} icon={LIST_ICON[s]} aria-pressed={value === s} disabled={disabled || state === "busy"}
           state={pending === s ? state : "idle"} className={`btn-sm${value === s ? ` inset ${LIST_CLASS[s]}` : ""}`}

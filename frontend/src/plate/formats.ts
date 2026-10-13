@@ -70,10 +70,19 @@ const ALL_LETTERS: CharClass[] = [...LETTERS, ZHE, ...DIPLOMATIC];
 
 // A stored event as plate positions (results table), or null when the read does not fit a known layout
 // (invalid reads, protocol plates without a validated format): those are shown as text.
-export function eventPlate(e: { plate_type: string; plate_string_latin: string; zone?: string | null; is_valid: boolean | null }):
+// Plate type from the letter when a record has none (watchlist entries): Zhe -> disabled, D/S -> diplomatic,
+// Gaf -> transit, 5 digits -> free zone; the reader classifies the same way.
+function inferType(latin: string): string {
+  const m = /^\d\d (\S+) \d{3} \| \d\d$/.exec(latin);
+  if (m) return m[1] === "Zhe" ? "disabled" : m[1] === "D" || m[1] === "S" ? "diplomatic" : m[1] === "Gaf" ? "transit" : "standard";
+  return /^\d{5}$/.test(latin) ? "freezone" : "";
+}
+
+export function eventPlate(e: { plate_type?: string; plate_string_latin: string; zone?: string | null; is_valid?: boolean | null }):
   { format: PlateFormat; values: SlotValues } | null {
-  if (!e.is_valid) return null;
-  const f = FORMATS.find((x) => x.plateType === e.plate_type);
+  if (e.is_valid === false || (e.is_valid === null && e.plate_type !== undefined)) return null;
+  const type = e.plate_type && e.plate_type !== "unknown" ? e.plate_type : inferType(e.plate_string_latin);
+  const f = FORMATS.find((x) => x.plateType === type);
   if (!f) return null;
   if (f.layout === "standard") {
     const m = /^(\d)(\d) (\S+) (\d)(\d)(\d) \| (\d)(\d)$/.exec(e.plate_string_latin);

@@ -38,3 +38,6 @@ frontend/dist/
 
 # local run outputs (events, crops: personal data)
 out/
+
+# TLS key/certificate for the LAN dashboard (tools/make_cert.sh)
+deploy/certs/

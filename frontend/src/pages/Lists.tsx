@@ -2,7 +2,7 @@ import { FormEvent, useState } from "react";
 import { ApiError, LISTS, ListPage, ListStatus, PersonEntry, PlateEntry, Unregistered, api, json, query } from "../api";
 import { CarFront, Plus, Search, Trash2, UserPlus, UserRound, X } from "lucide-react";
 import { ActionState, Btn, useActions } from "../components/Button";
-import { LIST_ICON, ListBadge, ListSwitch, StateView, fmtTime, useApi, useListLabel } from "../components/ui";
+import { LIST_ICON, ListBadge, ListSwitch, Plate, StateView, fmtTime, useApi, useListLabel } from "../components/ui";
 import { useI18n } from "../i18n";
 
 type Kind = "plate" | "person";
@@ -91,7 +91,7 @@ export function Lists({ role }: { role: string }) {
                   <tr key={it.id}>
                     {canEdit && <td><input type="checkbox" aria-label={t("lists.select", { name })} checked={selected.includes(it.id)} onChange={() => toggle(it.id)} /></td>}
                     {kind === "plate" ? (() => { const p = it as PlateEntry; return <>
-                      <td><span className="plate"><span className="fa inset" lang="fa" dir="rtl">{p.plate_string_fa}</span><span className="lat" dir="ltr">{p.plate_string_latin}</span></span></td>
+                      <td><Plate e={{ ...p, zone: null }} /></td>
                       <td>{canEdit ? (
                         <select className="inset" aria-label={t("lists.personFor", { plate: p.plate_string_latin })} value={p.person_id ?? 0}
                           onChange={(e) => run(`link-${p.id}`, () => api(`/plates/${p.id}`, json({ person_id: Number(e.target.value) }, "PATCH")), t("lists.linkUpdated"))}>
@@ -119,7 +119,7 @@ export function Lists({ role }: { role: string }) {
             <div className="table-wrap"><table><thead><tr><th>{t("col.plate")}</th><th>{t("lists.sightings")}</th><th>{t("lists.lastSeen")}</th><th>{t("lists.putOn")}</th></tr></thead><tbody>
               {unreg.data?.map((u) => (
                 <tr key={u.plate_key}>
-                  <td><span className="plate"><span className="fa inset" lang="fa" dir="rtl">{u.plate_string_fa}</span><span className="lat" dir="ltr">{u.plate_string_latin}</span></span></td>
+                  <td><Plate e={{ ...u, zone: null }} /></td>
                   <td>{num(u.sightings)}</td><td className="muted">{fmtTime(u.last_seen)}</td>
                   <td>{canEdit && <ListSwitch value={"unknown"} label={u.plate_string_latin} {...rowMove(`unreg-${u.plate_key}`)} onChange={(to) =>
                     run(`unreg-${u.plate_key}-${to}`, () => api("/plates", json({ plate: u.plate_string_latin, list_status: to, upsert: true })), t("lists.addedTo", { name: u.plate_string_latin, list: listLabel(to) }))} />}</td>

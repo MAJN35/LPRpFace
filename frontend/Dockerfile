@@ -10,6 +10,9 @@ RUN npm run build
 
 FROM nginx:1.27.3-alpine@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4
 COPY frontend/nginx.conf /etc/nginx/conf.d/default.conf
+COPY frontend/nginx-locations.conf /etc/nginx/lpr-locations.conf
+COPY frontend/nginx-tls.conf /etc/nginx/lpr-tls.conf
+COPY --chmod=755 frontend/40-lpr-tls.sh /docker-entrypoint.d/40-lpr-tls.sh
 COPY --from=build /app/dist /usr/share/nginx/html
 HEALTHCHECK --interval=15s --timeout=3s --retries=5 CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1
-EXPOSE 8080
+EXPOSE 8080 8443

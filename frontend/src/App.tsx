@@ -1,4 +1,4 @@
-import { Activity, Bell, BellOff, Cctv, Gauge, ListChecks, LogOut, LucideIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
+import { Activity, Bell, BellOff, BellRing, Cctv, Images, UsersRound, Gauge, ListChecks, LogOut, LucideIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
   ScanSearch, Settings as SettingsIcon } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
@@ -7,11 +7,16 @@ import { Btn } from "./components/Button";
 import { LangSwitch } from "./components/LangSwitch";
 import { Logo } from "./components/Logo";
 import { Notifications, readNotify, storeNotify } from "./components/Notifications";
+import { SysState, setSys, sysState } from "./components/systemNotify";
 import { Key, useI18n } from "./i18n";
 import { EventDetail } from "./pages/EventDetail";
 import { Health } from "./pages/Health";
 import { History } from "./pages/History";
+import { Library } from "./pages/Library";
 import { Lists } from "./pages/Lists";
+import { People } from "./pages/People";
+import { PersonDetail } from "./pages/PersonDetail";
+import { RegisterPeople } from "./pages/RegisterPeople";
 import { Live } from "./pages/Live";
 import { Login } from "./pages/Login";
 import { ChangePassword } from "./pages/ChangePassword";
@@ -22,7 +27,8 @@ const THEME_KEY = "lpr.theme";
 const NAV_KEY = "lpr.nav";                       // "collapsed" | "expanded", per browser like the theme
 const LINKS: [string, Key, LucideIcon][] = [
   ["/", "nav.overview", Gauge], ["/live", "nav.live", Cctv], ["/history", "nav.history", ScanSearch],
-  ["/lists", "nav.lists", ListChecks], ["/health", "nav.health", Activity], ["/settings", "nav.settings", SettingsIcon],
+  ["/people", "nav.people", UsersRound], ["/lists", "nav.lists", ListChecks], ["/library", "nav.library", Images],
+  ["/health", "nav.health", Activity], ["/settings", "nav.settings", SettingsIcon],
 ];
 function applyTheme(t: string) {
   if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t;
@@ -41,6 +47,7 @@ export function App() {
   const { t, lang } = useI18n();
   const [collapsed, setCollapsed] = useState(readNav);
   const [notify, setNotify] = useState(readNotify);
+  const [sys, setSysState] = useState<SysState>(sysState);
   const toggleNav = () => setCollapsed((c) => {
     try { localStorage.setItem(NAV_KEY, c ? "expanded" : "collapsed"); } catch { /* storage blocked */ }
     return !c;
@@ -82,6 +89,11 @@ export function App() {
           <Btn icon={notify ? Bell : BellOff} className="nav-out" iconOnly={collapsed} aria-pressed={notify}
             label={t(notify ? "notify.mute" : "notify.unmute")} tip={collapsed ? undefined : t("notify.hint")}
             onClick={() => { storeNotify(!notify); setNotify(!notify); }}>{t(notify ? "notify.on" : "notify.off")}</Btn>
+          <Btn icon={sys === "on" ? BellRing : BellOff} className="nav-out" iconOnly={collapsed} aria-pressed={sys === "on"}
+            disabled={sys === "unsupported" || sys === "insecure" || sys === "denied"}
+            label={sys === "insecure" ? t("notify.needHttps") : sys === "denied" ? t("notify.systemDenied") : t(sys === "on" ? "notify.systemOn" : "notify.systemOff")}
+            tip={collapsed ? undefined : sys === "insecure" ? t("notify.needHttps") : sys === "denied" ? t("notify.systemDenied") : undefined}
+            onClick={async () => setSysState(await setSys(sys !== "on"))}>{t(sys === "on" ? "notify.systemOn" : "notify.systemOff")}</Btn>
           <Btn icon={LogOut} flipRtl className="nav-out" iconOnly={collapsed} label={t("nav.signout")}
             onClick={() => { auth.set(null); setRole(null); }}>{t("nav.signout")}</Btn>
           <LangSwitch compact={collapsed} />
@@ -95,6 +107,10 @@ export function App() {
           <Route path="/live" element={<Live />} />
           <Route path="/history" element={<History />} />
           <Route path="/lists" element={<Lists role={role} />} />
+          <Route path="/people" element={<People role={role} />} />
+          <Route path="/people/register" element={<RegisterPeople />} />
+          <Route path="/people/:id" element={<PersonDetail role={role} />} />
+          <Route path="/library" element={<Library role={role} />} />
           <Route path="/events/:id" element={<EventDetail role={role} />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings role={role} onTheme={applyTheme} />} />

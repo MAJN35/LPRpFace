@@ -11,7 +11,16 @@ export const LISTS: ListStatus[] = ["whitelist", "blocklist", "unknown"];
 export type PlateEntry = { id: number; plate_key: string; plate_string_fa: string; plate_string_latin: string;
   list_status: ListStatus; effective_status: ListStatus; person_id: number | null; person_name: string | null;
   notes: string; last_seen: string | null };
-export type PersonEntry = { id: number; full_name: string; notes: string; list_status: ListStatus; plates: number };
+export type PersonEntry = { id: number; full_name: string; notes: string; list_status: ListStatus; plates: number;
+  auto_named?: boolean; faces?: number; last_seen?: string | null; cover_face?: string | null };
+// Face recognition: one face track with its snapshot and the person it was matched to (or none).
+export type FaceSummary = { id: string; timestamp: string; camera_id: string; track_id: number | null;
+  person_id: number | null; person_name: string | null; person_auto: boolean; similarity: number | null;
+  match: "matched" | "new_person" | "manual" | "none"; det_score: number; list_status: ListStatus;
+  has_snapshot: boolean; has_embedding: boolean };
+export type Snapshot = { kind: "plate" | "face"; id: string; timestamp: string; camera_id: string; list_status: ListStatus;
+  person_id: number | null; person_name: string | null; person_auto?: boolean; plate_type?: string;
+  plate_string_fa?: string; plate_string_latin?: string; zone?: string | null; is_valid?: boolean | null };
 export type ListPage<T> = { items: T[]; total: number; limit: number; offset: number };
 export type Unregistered = { plate_key: string; plate_string_fa: string; plate_string_latin: string; sightings: number; last_seen: string };
 export type EventDetail = EventSummary & {
@@ -23,8 +32,8 @@ export type EventDetail = EventSummary & {
 export type Page = { items: EventSummary[]; total: number; limit: number; offset: number };
 export type Stats = { hours: number; total: number; valid: number; valid_rate: number | null;
   by_camera: Record<string, number>; by_plate_type: Record<string, number>; last_event_at: string | null };
-export type SourceHealth = { status: string; fps_in?: number; last_frame_age_s?: number | null; last_error?: string | null;
-  reconnects?: number; frames_in?: number };
+export type SourceHealth = { status: string; fps_in?: number; fps_out?: number; last_frame_age_s?: number | null;
+  last_error?: string | null; reconnects?: number; frames_in?: number };
 export type Status = {
   database: { events: number; last_event_at: string | null };
   inference: { reachable: boolean; error?: string; model?: { version: string; precision: string; batch_profile: number[] };
@@ -73,6 +82,7 @@ export async function login(username: string, password: string): Promise<Session
 }
 
 export const cropUrl = (id: string) => `/api/v1/events/${id}/crop?token=${encodeURIComponent(auth.token ?? "")}`;
+export const faceUrl = (id: string) => `/api/v1/faces/${id}/snapshot?token=${encodeURIComponent(auth.token ?? "")}`;
 
 export function query(params: Record<string, string | number | boolean | undefined | null>): string {
   const q = new URLSearchParams();
@@ -84,7 +94,7 @@ export function query(params: Record<string, string | number | boolean | undefin
 export type LiveState = "connecting" | "open" | "closed";
 // Live events with reconnect backoff (1 s doubling to 30 s). Returns a stop function.
 export function connectLive(onEvent: (e: EventSummary) => void, onState: (s: LiveState) => void,
-  onAlert?: (e: EventSummary) => void): () => void {
+  onAlert?: (e: EventSummary) => void, onFace?: (f: FaceSummary, alert: boolean) => void): () => void {
   let ws: WebSocket | null = null; let delay = 1000; let stopped = false; let timer: number | undefined;
   const open = () => {
     if (stopped) return;
@@ -92,7 +102,8 @@ export function connectLive(onEvent: (e: EventSummary) => void, onState: (s: Liv
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/api/v1/ws/events?token=${encodeURIComponent(auth.token ?? "")}`);
     ws.onopen = () => { delay = 1000; onState("open"); };
-    ws.onmessage = (m) => { try { const d = JSON.parse(m.data); if (d.type === "event") onEvent(d.event); if (d.type === "alert") onAlert?.(d.event); } catch { /* ignore */ } };
+    ws.onmessage = (m) => { try { const d = JSON.parse(m.data); if (d.type === "event") onEvent(d.event); if (d.type === "alert") onAlert?.(d.event);
+      if (d.type === "face") onFace?.(d.face, false); if (d.type === "face_alert") onFace?.(d.face, true); } catch { /* ignore */ } };
     ws.onclose = () => { onState("closed"); if (!stopped) { timer = window.setTimeout(open, delay); delay = Math.min(delay * 2, 30000); } };
   };
   open();

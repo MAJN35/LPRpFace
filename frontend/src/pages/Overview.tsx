@@ -25,6 +25,7 @@ export function Overview() {
         <div className="kpi raised"><div className="label">{t("ov.read")}</div><div className="value">{stats.data ? num(stats.data.total) : "–"}</div></div>
         <div className="kpi raised"><div className="label">{t("ov.valid")}</div><div className="value">{stats.data?.valid_rate != null ? `${num((stats.data.valid_rate * 100).toFixed(1))} %` : "–"}</div></div>
         <div className="kpi raised"><div className="label">{t("ov.online")}</div><div className="value">{status.data?.inference.reachable ? `${num(online)} / ${num(Object.keys(sources).length)}` : "–"}</div></div>
+        <div className="kpi raised"><div className="label">{t("ov.modelFps")}</div><div className="value">{status.data?.inference.reachable && status.data.inference.pipeline ? `${num((status.data.inference.pipeline.inference_fps ?? 0).toFixed(1))} fps` : "–"}</div></div>
         <div className="kpi raised"><div className="label">{t("ov.fps")}</div><div className="value">{status.data?.inference.reachable ? `${num(fps.toFixed(1))} fps` : "–"}</div></div>
       </section>
       <div className="grid2">

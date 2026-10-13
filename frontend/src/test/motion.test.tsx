@@ -33,6 +33,6 @@ describe("Live arrivals", () => {
       source_file: null, timestamp: "2026-10-13T08:00:00Z", track_id: 1, model_version: "v2", plate_type: "standard",
       plate_string_fa: "۱۲ ب ۳۴۵ | ۶۷", plate_string_latin: "12 Be 345 | 67", zone: null, expiry: null, markers: [],
       confidence: 0.9, is_valid: true, invalid_reason: null, frames_voted: 3, has_crop: false, list_status: "unknown", person_id: null }); });
-    expect(screen.getByText("12 Be 345 | 67").closest("tr")).toHaveClass("arrived");
+    expect(screen.getByRole("group", { name: "Plate 12 Be 345 | 67" }).closest("tr")).toHaveClass("arrived");
   });
 });

@@ -44,12 +44,19 @@ describe("StateView", () => {
 });
 
 describe("Plate", () => {
-  it("renders Persian right-to-left next to the Latin form", () => {
+  it("draws a valid read as the plate shape, in physical left-to-right order, without Latin text", () => {
     render(<Plate e={EV} />);
-    const fa = screen.getByText("۱۲ ب ۳۴۵ | ۶۷");
+    const plate = screen.getByRole("group", { name: "Plate 12 Be 345 | 67" });
+    expect(plate).toHaveAttribute("dir", "ltr");
+    expect(plate.textContent).toContain("۱۲ب۳۴۵");
+    expect(plate.textContent).toContain("ایران۶۷");
+    expect(screen.queryByText("12 Be 345 | 67")).toBeNull();
+  });
+  it("shows an invalid read as Persian text only", () => {
+    render(<Plate e={{ ...EV, is_valid: false, plate_string_fa: "۵۰ م ۱۲", plate_string_latin: "5 0 Mim 1 2" }} />);
+    const fa = screen.getByText("۵۰ م ۱۲");
     expect(fa).toHaveAttribute("dir", "rtl");
     expect(fa).toHaveAttribute("lang", "fa");
-    expect(screen.getByText("12 Be 345 | 67")).toBeInTheDocument();
   });
   it("handles an event without a read", () => {
     render(<Plate e={{ plate_string_fa: "", plate_string_latin: "", zone: null }} />);
@@ -75,7 +82,7 @@ describe("History", () => {
   it("shows results and sends the search query", async () => {
     mockFetch(() => ({ body: { items: [EV], total: 1, limit: 25, offset: 0 } }));
     render(<MemoryRouter><History /></MemoryRouter>);
-    expect(await screen.findByText("12 Be 345 | 67")).toBeInTheDocument();
+    expect(await screen.findByRole("group", { name: "Plate 12 Be 345 | 67" })).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Free-text search (any plate form)"), "ب۳۴۵");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).includes("q=%D8%A8%DB%B3%DB%B4%DB%B5"))).toBe(true));
@@ -109,7 +116,7 @@ describe("Live", () => {
     expect(screen.getByText(/Disconnected/)).toBeInTheDocument();
     act(() => { state("open"); push(EV); });
     expect(screen.queryByText(/Disconnected/)).toBeNull();
-    expect(screen.getByText("۱۲ ب ۳۴۵ | ۶۷")).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Plate 12 Be 345 | 67" })).toBeInTheDocument();
   });
 });
 

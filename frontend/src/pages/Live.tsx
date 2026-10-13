@@ -1,7 +1,7 @@
 import { Cctv, LayoutGrid, ScanLine, Square, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Camera, EventSummary, LiveState, connectLive } from "../api";
+import { Camera, EventSummary, LiveState, Status, connectLive } from "../api";
 import { Btn } from "../components/Button";
 import { LiveVideo } from "../components/LiveVideo";
 import { ListBadge, Plate, PlateType, StateView, Validity, fmtTime, useApi } from "../components/ui";
@@ -15,7 +15,9 @@ type View = "osd" | "raw";
 // overlay is one encoder on this board (memory), so at most one tile shows detections and the others play raw.
 // Cameras without a raw stream (USB, CSI, files) show a placeholder until their detections are selected.
 function LiveGrid({ cams }: { cams: Camera[] }) {
-  const { t } = useI18n();
+  const { t, num } = useI18n();
+  const status = useApi<Status>("/status", 4000);       // model rate per camera on each tile
+  const fpsOf = (id: string) => status.data?.inference?.sources?.[id]?.fps_out;
   const [osdCam, setOsdCam] = useState<string | null>(() => cams[0]?.id ?? null);
   const [layout, setLayout] = useState<"grid" | "single">("grid");
   const [focus, setFocus] = useState<string>(cams[0]?.id ?? "");
@@ -45,7 +47,8 @@ function LiveGrid({ cams }: { cams: Camera[] }) {
             <figure key={cam.id} className="video-tile">
               <figcaption className="row video-cap">
                 <span className="row" style={{ gap: 6 }}><Cctv size={16} aria-hidden="true" /><strong>{cam.name}</strong>
-                  <span className="muted">{view === "osd" ? t("video.withOsd") : view === "raw" ? t("video.raw") : ""}</span></span>
+                  <span className="muted">{view === "osd" ? t("video.withOsd") : view === "raw" ? t("video.raw") : ""}</span>
+                  {fpsOf(cam.id) != null && <span className="badge inset fps-badge">{t("live.modelFps", { fps: num(fpsOf(cam.id)!.toFixed(1)) })}</span>}</span>
                 <span className="row" role="group" aria-label={t("live.viewOf", { camera: cam.name })} style={{ gap: 6 }}>
                   <Btn icon={ScanLine} className="btn-sm" aria-pressed={view === "osd"} onClick={() => setOsdCam(cam.id)}>{t("live.osd")}</Btn>
                   <Btn icon={Video} className="btn-sm" aria-pressed={view === "raw"} disabled={!canRaw}
