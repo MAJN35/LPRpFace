@@ -66,7 +66,7 @@ def engine_name(ver: str, onnx_sha: str, precision: str, profile: Tuple[int, int
 
 
 def ensure_engine(ver: str, meta_dir: Path, onnx_dir: Path, engine_dir: Path, precision: str,
-                  profile: Tuple[int, int, int], workspace_mib: int = 2048) -> Tuple[Path, Dict]:
+                  profile: Tuple[int, int, int], workspace_mib: int = 1024) -> Tuple[Path, Dict]:
     ident = check_model_meta(meta_dir)
     name = engine_name(ver, ident["onnx_sha256"], precision, profile)
     engine, side = engine_dir / name, engine_dir / (name + ".json")

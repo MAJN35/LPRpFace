@@ -12,7 +12,7 @@ ver="${1:?model version (v1|v2)}"
 repo="$(cd "$(dirname "$0")/../.." && pwd)"
 PRECISION="${PRECISION:-fp16}"
 MIN_BATCH="${MIN_BATCH:-1}" OPT_BATCH="${OPT_BATCH:-2}" MAX_BATCH="${MAX_BATCH:-4}"
-WORKSPACE_MIB="${WORKSPACE_MIB:-2048}"
+WORKSPACE_MIB="${WORKSPACE_MIB:-1024}"   # memory rule: 1024 MB, nothing else running
 ENGINE_DIR="${ENGINE_DIR:-$repo/engine_cache}"
 IMAGE="${DS_IMAGE:-nvcr.io/nvidia/deepstream-l4t:6.3-samples@sha256:e01bb8f5ba10584d752b83c7b3cf66c6e01c0e1afd2cdbb1ec31082e947b75cf}"
 

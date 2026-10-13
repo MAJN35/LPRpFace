@@ -8,7 +8,7 @@ from typing import Optional
 
 import bcrypt
 import jwt
-from fastapi import Depends, Header, HTTPException, Query, status
+from fastapi import Depends, Header, HTTPException, Query, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,6 +20,9 @@ from .models import User
 ROLES = ("admin", "operator", "viewer")
 oauth2 = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 UNAUTHORIZED = HTTPException(status.HTTP_401_UNAUTHORIZED, "Not authenticated", {"WWW-Authenticate": "Bearer"})
+PASSWORD_CHANGE_REQUIRED = HTTPException(status.HTTP_403_FORBIDDEN, "password_change_required")
+# Reachable while a password change is pending (default admin before first use).
+PASSWORD_CHANGE_PATHS = ("/api/v1/auth/me", "/api/v1/auth/change-password")
 
 
 def hash_password(pw: str) -> str:
@@ -53,9 +56,12 @@ async def user_from_token(token: Optional[str], db: AsyncSession) -> User:
     return user
 
 
-async def current_user(token: Optional[str] = Depends(oauth2), q_token: Optional[str] = Query(None, alias="token"),
-                       db: AsyncSession = Depends(get_db)) -> User:
-    return await user_from_token(token or q_token, db)
+async def current_user(request: Request, token: Optional[str] = Depends(oauth2),
+                       q_token: Optional[str] = Query(None, alias="token"), db: AsyncSession = Depends(get_db)) -> User:
+    user = await user_from_token(token or q_token, db)
+    if user.must_change_password and request.url.path not in PASSWORD_CHANGE_PATHS:
+        raise PASSWORD_CHANGE_REQUIRED
+    return user
 
 
 def require(*roles: str):

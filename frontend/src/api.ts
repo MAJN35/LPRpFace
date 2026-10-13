@@ -63,11 +63,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export async function login(username: string, password: string): Promise<string> {
+export type Session = { role: string; mustChange: boolean };
+export async function login(username: string, password: string): Promise<Session> {
   const body = new URLSearchParams({ username, password });
-  const r = await api<{ access_token: string; role: string }>("/auth/login", { method: "POST", body });
+  const r = await api<{ access_token: string; role: string; must_change_password: boolean }>("/auth/login", { method: "POST", body });
   auth.set(r.access_token);
-  return r.role;
+  return { role: r.role, mustChange: r.must_change_password };
 }
 
 export const cropUrl = (id: string) => `/api/v1/events/${id}/crop?token=${encodeURIComponent(auth.token ?? "")}`;

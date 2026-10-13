@@ -1,7 +1,7 @@
 import { FormEvent, useState } from "react";
-import { ApiError, login } from "../api";
+import { ApiError, Session, login } from "../api";
 
-export function Login({ onDone }: { onDone: (role: string) => void }) {
+export function Login({ onDone }: { onDone: (s: Session) => void }) {
   const [user, setUser] = useState(""); const [pw, setPw] = useState("");
   const [err, setErr] = useState<string | null>(null); const [busy, setBusy] = useState(false);
   async function submit(ev: FormEvent) {

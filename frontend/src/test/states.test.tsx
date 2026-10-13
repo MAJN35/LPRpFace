@@ -122,3 +122,22 @@ describe("Login", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Wrong username or password.");
   });
 });
+
+import { ChangePassword } from "../pages/ChangePassword";
+describe("ChangePassword", () => {
+  it("validates locally and posts the change", async () => {
+    const done = vi.fn();
+    mockFetch(() => ({ body: { username: "admin", role: "admin", is_active: true, must_change_password: false } }));
+    render(<ChangePassword onDone={done} />);
+    await userEvent.type(screen.getByLabelText("Current password"), "initial-password");
+    await userEvent.type(screen.getByLabelText("New password"), "short");
+    await userEvent.type(screen.getByLabelText("Repeat new password"), "short");
+    await userEvent.click(screen.getByRole("button", { name: "Change password" }));
+    expect(screen.getByRole("alert")).toHaveTextContent("at least 12");
+    await userEvent.clear(screen.getByLabelText("New password")); await userEvent.type(screen.getByLabelText("New password"), "a-much-longer-password");
+    await userEvent.clear(screen.getByLabelText("Repeat new password")); await userEvent.type(screen.getByLabelText("Repeat new password"), "a-much-longer-password");
+    await userEvent.click(screen.getByRole("button", { name: "Change password" }));
+    await waitFor(() => expect(done).toHaveBeenCalled());
+    expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).endsWith("/auth/change-password"))).toBe(true);
+  });
+});

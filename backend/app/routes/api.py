@@ -35,12 +35,29 @@ async def login(form: OAuth2PasswordRequestForm = Depends(), db: AsyncSession = 
     user = (await db.execute(select(User).where(User.username == form.username))).scalars().first()
     if user is None or not user.is_active or not verify_password(form.password, user.password_hash):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "wrong username or password")
-    return schemas.Token(access_token=create_token(user.username, user.role), role=user.role)
+    return schemas.Token(access_token=create_token(user.username, user.role), role=user.role,
+                         must_change_password=user.must_change_password)
 
 
 @router.get("/auth/me", response_model=schemas.UserOut, tags=["auth"])
 async def me(user: User = Depends(any_role)):
-    return schemas.UserOut(username=user.username, role=user.role, is_active=user.is_active)
+    return schemas.UserOut(username=user.username, role=user.role, is_active=user.is_active,
+                           must_change_password=user.must_change_password)
+
+
+@router.post("/auth/change-password", response_model=schemas.UserOut, tags=["auth"])
+async def change_password(body: schemas.PasswordChange, user: User = Depends(any_role),
+                          db: AsyncSession = Depends(get_db)):
+    if not verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "current password is wrong")
+    if body.new_password == body.current_password:
+        raise HTTPException(422, "the new password must differ from the current one")
+    row = await db.get(User, user.id)
+    row.password_hash = hash_password(body.new_password)
+    row.must_change_password = False
+    db.add(AuditLog(username=user.username, action="password_change", target=user.username))
+    await db.commit()
+    return schemas.UserOut(username=row.username, role=row.role, is_active=row.is_active, must_change_password=False)
 
 
 @router.post("/users", response_model=schemas.UserOut, status_code=201, tags=["auth"])
@@ -234,7 +251,9 @@ async def stats(hours: int = Query(24, ge=1, le=24 * 90), _: User = Depends(any_
 async def ws_events(ws: WebSocket, token: Optional[str] = None):
     async with SessionLocal() as db:
         try:
-            await user_from_token(token, db)
+            u = await user_from_token(token, db)
+            if u.must_change_password:
+                raise HTTPException(403)
         except HTTPException:
             await ws.close(code=4401)
             return

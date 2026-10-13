@@ -101,12 +101,19 @@ class Token(BaseModel):
     access_token: str
     token_type: str = "bearer"
     role: str
+    must_change_password: bool = False
+
+
+class PasswordChange(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=12, max_length=128)
 
 
 class UserOut(BaseModel):
     username: str
     role: str
     is_active: bool
+    must_change_password: bool = False
 
 
 class UserCreate(BaseModel):

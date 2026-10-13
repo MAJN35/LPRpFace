@@ -269,3 +269,21 @@ Format: date, decision, reason, alternatives, source.
   `live-source=1` whenever a real-time file is present — runs. Kept (3); `sink async=false` also removed.
 - A file is still pulled as fast as inference allows (no frame drops), so camera-like accuracy experiments use the
   test video served as RTSP by mediamtx instead (`tools/exp_video_accuracy.sh`).
+
+## 2026-10-13: User decisions after the freeze
+
+- **Dashboard on the LAN:** `FRONTEND_BIND=0.0.0.0` (port 8080 published on all interfaces; the only published
+  port). Precondition implemented first: the bootstrap admin must change its password before any other API call
+  (`users.must_change_password`, migration 0003 also flags the existing admin; every endpoint except `/auth/me` and
+  `/auth/change-password` answers 403 `password_change_required`, the WebSocket is refused; new password ≥ 12
+  characters, different from the old one; audited). Dashboard: change-password screen after sign-in. Undo:
+  `FRONTEND_BIND=127.0.0.1`.
+- **Live-video gateway:** not now (Live page shows events only).
+- **jetson_clocks:** no. All measurements in nvpmodel mode 8 without jetson_clocks.
+- **Face-based person lists:** stay forbidden (A.7 privacy unchanged).
+- **Memory rules for every run** (after the freeze): cached engines only (rebuild only on ONNX change, then workspace
+  1024 MB and nothing else running); `docker --memory=5g` (`deepstream/run.sh`); tegrastats logged to a file;
+  watchdog kills the run below 800 MB available RAM (`tools/guarded_run.sh`); one pipeline at a time; sources
+  increased one step at a time, stopping at the first step that crosses the limit (`tools/run_grid.sh`).
+  `build_engine.sh` default workspace changed to 1024 MiB accordingly.
+- **Privacy:** private images and frames derived from them are never opened or viewed; numeric checks only.

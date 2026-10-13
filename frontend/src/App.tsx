@@ -7,6 +7,7 @@ import { History } from "./pages/History";
 import { Lists } from "./pages/Lists";
 import { Live } from "./pages/Live";
 import { Login } from "./pages/Login";
+import { ChangePassword } from "./pages/ChangePassword";
 import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
 
@@ -18,16 +19,20 @@ function applyTheme(t: string) {
 
 export function App() {
   const [role, setRole] = useState<string | null>(null);
+  const [mustChange, setMustChange] = useState(false);
   const [checked, setChecked] = useState(false);
   useEffect(() => {
     try { applyTheme(localStorage.getItem(THEME_KEY) ?? "auto"); } catch { /* storage blocked */ }
     const out = () => setRole(null);
     window.addEventListener("lpr:unauthorized", out);
-    (auth.token ? api<{ role: string }>("/auth/me").then((u) => setRole(u.role)).catch(out) : Promise.resolve()).finally(() => setChecked(true));
+    (auth.token ? api<{ role: string; must_change_password: boolean }>("/auth/me")
+      .then((u) => { setRole(u.role); setMustChange(u.must_change_password); }).catch(out) : Promise.resolve())
+      .finally(() => setChecked(true));
     return () => window.removeEventListener("lpr:unauthorized", out);
   }, []);
   if (!checked) return <div className="state" role="status">Loading…</div>;
-  if (!role) return <Login onDone={setRole} />;
+  if (!role) return <Login onDone={(s) => { setRole(s.role); setMustChange(s.mustChange); }} />;
+  if (mustChange) return <ChangePassword onDone={() => setMustChange(false)} />;
   const links: [string, string][] = [["/", "Overview"], ["/live", "Live"], ["/history", "History"], ["/lists", "Lists"], ["/health", "System health"], ["/settings", "Settings"]];
   return (
     <div className="shell">

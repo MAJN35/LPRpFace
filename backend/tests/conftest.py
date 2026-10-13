@@ -36,10 +36,21 @@ def client(env):
         yield c
 
 
+NEW_ADMIN_PASSWORD = "admin-password-changed-2"
+
+
 @pytest.fixture(scope="session")
 def admin_token(client):
+    """The bootstrap admin must change its password before anything else (forced change)."""
     r = client.post("/api/v1/auth/login", data={"username": "admin", "password": "admin-password-1"})
     assert r.status_code == 200, r.text
+    assert r.json()["must_change_password"] is True
+    first = {"Authorization": f"Bearer {r.json()['access_token']}"}
+    r = client.post("/api/v1/auth/change-password", headers=first,
+                    json={"current_password": "admin-password-1", "new_password": NEW_ADMIN_PASSWORD})
+    assert r.status_code == 200, r.text
+    r = client.post("/api/v1/auth/login", data={"username": "admin", "password": NEW_ADMIN_PASSWORD})
+    assert r.json()["must_change_password"] is False
     return r.json()["access_token"]
 
 

@@ -49,10 +49,29 @@ const text = () => page.evaluate(() => document.body.innerText);
 try {
   await page.goto(URL_, { waitUntil: "networkidle0" });
   await shot("login");
-  await page.type("input[autocomplete=username]", process.env.ADMIN_USERNAME ?? "admin");
-  await page.type("input[type=password]", process.env.ADMIN_PASSWORD ?? "");
-  await Promise.all([page.click("button[type=submit]"), page.waitForSelector("nav.side")]);
-  check(true, "login");
+  // Sign in; the bootstrap admin is forced to change its password first (E2E_NEW_PASSWORD), and later runs sign in
+  // with that new password.
+  const signIn = async (pw) => {
+    await page.goto(URL_, { waitUntil: "networkidle0" });
+    await page.type("input[autocomplete=username]", process.env.ADMIN_USERNAME ?? "admin");
+    await page.type("input[type=password]", pw);
+    await page.click("button[type=submit]");
+    await page.waitForFunction(() => document.querySelector("nav.side") || document.querySelector("form[aria-label='Change password']")
+      || document.querySelector("[role=alert]"), { timeout: 15000 });
+    return page.evaluate(() => document.querySelector("nav.side") ? "app" : document.querySelector("form[aria-label='Change password']") ? "change" : "error");
+  };
+  let state = await signIn(process.env.ADMIN_PASSWORD ?? "");
+  if (state === "error") state = await signIn(process.env.E2E_NEW_PASSWORD ?? "");
+  if (state === "change") {
+    check(true, "forced password change shown for the default admin");
+    await shot("change_password");
+    await page.type("input[autocomplete=current-password]", process.env.ADMIN_PASSWORD ?? "");
+    const fields = await page.$$("input[autocomplete=new-password]");
+    for (const f of fields) await f.type(process.env.E2E_NEW_PASSWORD ?? "");
+    await Promise.all([page.click("button[type=submit]"), page.waitForSelector("nav.side", { timeout: 15000 })]);
+    state = "app";
+  }
+  check(state === "app", "login");
   await page.waitForFunction(() => document.body.innerText.includes("Recent plates"));
   await new Promise((r) => setTimeout(r, 1500));
   check((await text()).includes("27 Jim 814 | 55"), "overview lists real API data");

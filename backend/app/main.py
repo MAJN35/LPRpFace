@@ -26,7 +26,7 @@ async def bootstrap_admin() -> None:
     async with SessionLocal() as db:
         if (await db.execute(select(func.count()).select_from(User))).scalar_one() == 0:
             db.add(User(username=settings.ADMIN_USERNAME, password_hash=hash_password(settings.ADMIN_PASSWORD),
-                        role="admin"))
+                        role="admin", must_change_password=True))   # forced change before first use
             await db.commit()
             log.info("bootstrap admin %r created", settings.ADMIN_USERNAME)
 
