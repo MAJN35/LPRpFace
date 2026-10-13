@@ -1,0 +1,4 @@
+# Compose deployment test: one camera-like RTSP source from the local test server (profile "test").
+defaults: {max_fps: 10, min_plate_px: 40, face_blur: true, record: false, rtsp_transport: tcp}
+sources:
+  - {id: cam-01, name: "Test camera (mediamtx, 6-clip video)", type: rtsp, uri: "rtsp://mediamtx:8554/cam-01"}

@@ -80,7 +80,8 @@ try {
   await page.goto(`${URL_}/history?`, { waitUntil: "networkidle0" });
   await page.type("form[role=search] input", "ل۲۰۹");
   await page.click("button[type=submit]");
-  await page.waitForFunction(() => document.body.innerText.includes("63 Lam 209 | 11"), { timeout: 10000 });
+  await page.waitForFunction(() => document.body.innerText.includes("63 Lam 209 | 11") && !document.body.innerText.includes("27 Jim 814 | 55")
+    && !document.querySelector("[aria-busy=true]"), { timeout: 10000 });
   const t = await text();
   check(t.includes("63 Lam 209 | 11") && !t.includes("27 Jim 814 | 55"), "history: Persian partial search finds only the matching plate");
   const dir = await page.$eval(".plate .fa", (el) => getComputedStyle(el).direction);

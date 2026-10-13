@@ -53,7 +53,7 @@ async def status(_: User = Depends(any_role), db: AsyncSession = Depends(get_db)
     try:
         inf = await _inference("GET", "/health")
         inference = {"reachable": True, "model": inf.get("model"), "engine": inf.get("engine"),
-                     "max_cameras": inf.get("max_cameras"), "pipeline": inf.get("pipeline"),
+                     "max_cameras": inf.get("max_cameras"), "capacity": inf.get("capacity"), "pipeline": inf.get("pipeline"),
                      "worker": inf.get("worker"), "sources": inf.get("sources")}
     except HTTPException as e:
         inference = {"reachable": False, "error": e.detail}

@@ -45,3 +45,5 @@ COPY deepstream/configs /app/configs
 COPY models /app/models-meta
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
 WORKDIR /app
+# fail the build if the app cannot find its event schema (a wrong path once dropped every event in the image)
+RUN python3 -c "from app import events; assert events.SCHEMA_PATH.is_file(), events.SCHEMA_PATH; print('schema', events.SCHEMA_PATH)"

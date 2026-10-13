@@ -80,7 +80,15 @@ def main() -> int:
                         max_batch=profile[2], interval=interval, osd=env("LPR_OSD", "0") == "1",
                         output_rtsp=env("LPR_OUTPUT_RTSP"), exit_on_eos=exit_on_eos)
     app = LprPipeline(app_cfg, sources, worker)
-    info = {"model": model, "max_cameras": int(env("LPR_MAX_CAMERAS", "0")) or None, "engine": engine.name}
+    def env_int(name, default):
+        v = env(name).strip()
+        return int(v) if v else default
+    # Measured capacity (docs/benchmark.md): exposed in /health and the dashboard's System health page.
+    capacity = {"max_cameras_memory_safe": env_int("LPR_MAX_CAMERAS", 4),
+                "max_cameras_at_target_fps": env_int("LPR_MAX_CAMERAS_AT_TARGET", 0),
+                "target_fps_per_camera": env_int("LPR_TARGET_FPS", 8), "source": "docs/benchmark.md"}
+    info = {"model": model, "max_cameras": capacity["max_cameras_memory_safe"], "capacity": capacity,
+            "engine": engine.name}
     control = ControlServer(app, env("LPR_CONTROL_HOST", "0.0.0.0"), int(env("LPR_CONTROL_PORT", "8090")),
                             env("LPR_JOBS_DIR", "/data/jobs"), info)
     control.start()

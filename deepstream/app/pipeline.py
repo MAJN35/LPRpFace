@@ -174,7 +174,8 @@ class LprPipeline:
         if self.pipeline.get_state(0)[1] in (Gst.State.PLAYING, Gst.State.PAUSED):
             sb.bin.sync_state_with_parent()
         sb.start_feeder()
-        log.info("[%s] attached as mux pad %d (%s %s)", src.id, idx, src.type, src.uri_redacted or src.device)
+        where = src.uri_redacted or (src.device if src.type == "usb" else f"sensor {src.sensor_id}" if src.type == "csi" else "")
+        log.info("[%s] attached as mux pad %d (%s %s)", src.id, idx, src.type, where)
 
     def _detach(self, idx: int) -> Optional[SourceBin]:
         with self._lock:
@@ -384,6 +385,7 @@ class LprPipeline:
             om = pyds.NvDsObjectMeta.cast(l_obj.data)
             l_obj = l_obj.next
             if om.class_id == C.FACE_ID and self.cfg.osd and sb.src.face_blur:
+                self.stats["faces_masked"] = self.stats.get("faces_masked", 0) + 1
                 om.rect_params.has_bg_color = 1       # opaque privacy mask on the output stream
                 om.rect_params.bg_color.set(0.1, 0.1, 0.1, 1.0)
                 om.rect_params.border_width = 0

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import json
+import os
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
@@ -12,7 +13,12 @@ from lpr_reader.reader import PlateRead
 from lpr_reader.voting import TrackResult
 
 SCHEMA_VERSION = "2.0"
-SCHEMA_PATH = Path(__file__).resolve().parents[2] / "schemas" / "plate_event-2.0.json"
+_HERE = Path(__file__).resolve()
+# Repo: <repo>/schemas; image: /app/schemas (app code in /app/app). LPR_SCHEMA_PATH overrides.
+SCHEMA_PATH = next((p for p in (Path(os.environ.get("LPR_SCHEMA_PATH", "/nonexistent")),
+                                _HERE.parents[1] / "schemas" / "plate_event-2.0.json",
+                                _HERE.parents[2] / "schemas" / "plate_event-2.0.json") if p.is_file()),
+                   _HERE.parents[2] / "schemas" / "plate_event-2.0.json")
 
 
 def iso_utc(t: float) -> str:

@@ -16,6 +16,9 @@ services:
     image: lpr-deepstream:6.3
     runtime: nvidia
     restart: unless-stopped
+    mem_limit: ${DS_MEM_LIMIT:-5g}            # memory rules (docs/STATUS.md incident 2026-10-13)
+    memswap_limit: ${DS_MEM_LIMIT:-5g}
+    labels: {lpr.guarded: "1"}                # tools/guarded_run.sh watchdog kills this container below 800 MB free
     logging: *logging
     command: ["python3", "-m", "app.main"]
     environment:
@@ -32,7 +35,9 @@ services:
       LPR_OSD: ${LPR_OSD:-0}
       LPR_OUTPUT_RTSP: ${LPR_OUTPUT_RTSP:-}
       LPR_DEDUP_S: ${LPR_DEDUP_S:-30}
-      LPR_MAX_CAMERAS: ${LPR_MAX_CAMERAS:-}
+      LPR_MAX_CAMERAS: ${LPR_MAX_CAMERAS:-4}                 # measured memory-safe maximum (docs/benchmark.md)
+      LPR_MAX_CAMERAS_AT_TARGET: ${LPR_MAX_CAMERAS_AT_TARGET:-0}   # cameras at >= LPR_TARGET_FPS inferred fps
+      LPR_TARGET_FPS: ${LPR_TARGET_FPS:-8}
       LPR_SOURCES_FILE: /config/sources.yaml
       ENGINE_DIR: /engines
       ONNX_DIR: /models/${MODEL_VERSION:-v2}/export

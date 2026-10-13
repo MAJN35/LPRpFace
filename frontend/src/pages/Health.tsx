@@ -13,7 +13,8 @@ export function Health() {
           <section className="kpis" aria-label="Service status">
             <div className="kpi raised"><div className="label">Inference</div><div className={`value ${inf.reachable ? "ok" : "bad"}`}>{inf.reachable ? "up" : "down"}</div></div>
             <div className="kpi raised"><div className="label">Events stored</div><div className="value">{st.data.database.events}</div></div>
-            <div className="kpi raised"><div className="label">Max cameras (measured)</div><div className="value">{inf.max_cameras ?? "–"}</div></div>
+            <div className="kpi raised"><div className="label">Max cameras (measured, memory-safe)</div><div className="value">{inf.capacity?.max_cameras_memory_safe ?? inf.max_cameras ?? "–"}</div>
+              {inf.capacity && <div className="muted" style={{ fontSize: 13 }}>{inf.capacity.max_cameras_at_target_fps} at ≥ {inf.capacity.target_fps_per_camera} fps per camera</div>}</div>
             <div className="kpi raised"><div className="label">Retention</div><div className="value">{st.data.retention_days} d</div></div>
           </section>
           {!inf.reachable && <div className="banner inset" role="alert"><strong className="bad">Inference unreachable:</strong> {inf.error}</div>}

@@ -29,6 +29,7 @@ export type Status = {
   database: { events: number; last_event_at: string | null };
   inference: { reachable: boolean; error?: string; model?: { version: string; precision: string; batch_profile: number[] };
     engine?: string; max_cameras?: number | null; pipeline?: Record<string, number>; worker?: Record<string, unknown>;
+    capacity?: { max_cameras_memory_safe: number; max_cameras_at_target_fps: number; target_fps_per_camera: number };
     sources?: Record<string, SourceHealth> };
   retention_days: number;
 };
