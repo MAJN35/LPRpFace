@@ -1,0 +1,9 @@
+# Override for running the service stack while a TensorRT engine builds: these containers are the first the kernel
+# kills if memory runs out (oom_score_adj 1000), so the engine build survives; Kafka heap reduced.
+services:
+  kafka: {oom_score_adj: 1000, environment: {KAFKA_HEAP_OPTS: "-Xms192m -Xmx256m"}}
+  kafka-init: {oom_score_adj: 1000}
+  db: {oom_score_adj: 1000}
+  backend: {oom_score_adj: 1000}
+  consumer: {oom_score_adj: 1000}
+  frontend: {oom_score_adj: 1000}

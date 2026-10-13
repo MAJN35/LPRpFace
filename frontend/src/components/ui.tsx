@@ -91,11 +91,12 @@ export function ListSwitch({ value, onChange, disabled, label }: {
   value: ListStatus; onChange: (s: ListStatus) => void; disabled?: boolean; label: string;
 }) {
   return (
-    <div className="row" role="group" aria-label={`List for ${label}`} style={{ gap: 6 }}>
+    <div role="group" aria-label={`List for ${label}`} style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
       {LISTS.map((s) => (
-        <button key={s} type="button" aria-pressed={value === s} disabled={disabled || value === s}
-          className={value === s ? `inset ${LIST_CLASS[s]}` : ""} onClick={() => onChange(s)}
-          style={{ padding: "4px 10px", fontSize: 13 }}>{LIST_LABEL[s]}</button>
+        <button key={s} type="button" aria-pressed={value === s} disabled={disabled}
+          className={value === s ? `inset ${LIST_CLASS[s]}` : ""} onClick={() => value !== s && onChange(s)}
+          style={{ padding: "4px 10px", fontSize: 13, whiteSpace: "nowrap", fontWeight: value === s ? 700 : 400 }}>
+          {LIST_LABEL[s]}</button>
       ))}
     </div>
   );

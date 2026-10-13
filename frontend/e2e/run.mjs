@@ -10,6 +10,9 @@ const BACKEND = process.env.BACKEND_URL ?? "http://backend:8000";
 const SHOTS = process.env.SHOTS ?? "";
 const run = randomUUID().slice(0, 8);
 const cam = `e2e-${run}`;
+const fa = (n) => String(n).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[d]);
+const d3 = 100 + Math.floor(Math.random() * 900);   // unique plate per run (lists are persistent)
+const listPlate = { fa: `۳۸ ج ${fa(d3)} | ۵۵`, latin: `38 Jim ${d3} | 55` };
 let failures = 0;
 const check = (ok, what) => { console.log(`${ok ? "PASS" : "FAIL"} ${what}`); if (!ok) failures++; };
 
@@ -23,7 +26,7 @@ const demo = [
 function ev([fa, lat, key, type, zone, valid, reason], minutesAgo) {
   return { schema_version: "2.0", event_id: randomUUID(), event_type: "plate.recognized",
     source: { id: cam, type: "rtsp", uri_redacted: "rtsp://demo-camera/ch1", file_name: null }, camera_id: cam,
-    timestamp: new Date(Date.now() - minutesAgo * 60000).toISOString(), track_id: 1,
+    timestamp: new Date(Date.now() - minutesAgo * 1000).toISOString(), track_id: 1,
     model: { version: "v2", sha256: "f".repeat(64), engine_sha256: null, precision: "fp16", batch_profile: [1, 2, 4] },
     plate_type: type, plate_string_fa: fa, plate_string_latin: lat, plate_key: key, zone, expiry: null,
     markers: type === "freezone" ? ["freezone"] : [], characters: [{ class_id: 2, name: "2", confidence: 0.97, margin: 0.9, box: [1, 2, 3, 4] }],
@@ -36,7 +39,7 @@ async function ingest(e) {
   if (!r.ok) throw new Error(`ingest ${r.status}`);
 }
 
-for (const [i, d] of demo.entries()) await ingest(ev(d, 30 - i * 5));
+for (const [i, d] of demo.entries()) await ingest(ev(d, 10 - i));   // seconds ago: newest on the Overview
 const browser = await puppeteer.launch({ executablePath: process.env.CHROME ?? "/usr/bin/chromium",
   args: ["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"], headless: true });
 const page = await browser.newPage();
@@ -56,14 +59,14 @@ try {
   await shot("overview");
 
   await page.goto(`${URL_}/history?`, { waitUntil: "networkidle0" });
-  await page.type("input[placeholder^='۱۲ب']", "ل۲۰۹");
+  await page.type("form[role=search] input", "ل۲۰۹");
   await page.click("button[type=submit]");
   await page.waitForFunction(() => document.body.innerText.includes("63 Lam 209 | 11"), { timeout: 10000 });
   const t = await text();
   check(t.includes("63 Lam 209 | 11") && !t.includes("27 Jim 814 | 55"), "history: Persian partial search finds only the matching plate");
   const dir = await page.$eval(".plate .fa", (el) => getComputedStyle(el).direction);
   check(dir === "rtl", "Persian plate rendered right-to-left");
-  await page.click("button[type=button]");          // Clear
+  await page.evaluate(() => [...document.querySelectorAll("form[role=search] button")].find((b) => b.textContent === "Clear").click());
   await page.waitForFunction(() => document.body.innerText.includes("27 Jim 814 | 55"));
   await shot("history");
 
@@ -81,15 +84,17 @@ try {
   await shot("live");
 
   await page.goto(`${URL_}/lists`, { waitUntil: "networkidle0" });
-  await page.type("input[placeholder^='۱۲ ب']", "۲۷ ج ۸۱۴ | ۵۵");
+  await page.type("form[aria-label='Add plate'] input", listPlate.fa);
   await page.click("form[aria-label='Add plate'] button[type=submit]");
   await page.waitForFunction(() => document.body.innerText.includes("added to Blocklist"), { timeout: 10000 });
-  await page.waitForSelector("[role=group][aria-label='List for 27 Jim 814 | 55']");
-  await page.click("[role=group][aria-label='List for 27 Jim 814 | 55'] button:first-child");   // -> Whitelist
+  const grp = `[role=group][aria-label='List for ${listPlate.latin}']`;
+  await page.waitForSelector(grp);
+  await page.click(`${grp} button:first-child`);   // -> Whitelist
   await page.waitForFunction(() => document.body.innerText.includes("moved to Whitelist"), { timeout: 10000 });
   check(true, "lists: add a plate in Persian to the blocklist, move it to the whitelist in one click");
   await page.click("[role=tablist][aria-label=List] button:first-child");
-  await page.waitForFunction(() => document.body.innerText.includes("27 Jim 814 | 55"));
+  await page.waitForSelector(`${grp} button[aria-pressed=true]`);
+  await new Promise((r) => setTimeout(r, 800));
   await shot("lists");
 
   await page.goto(`${URL_}/health`, { waitUntil: "networkidle0" });

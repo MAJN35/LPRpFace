@@ -41,5 +41,5 @@
   "images/test/rfshahabpe_000974.jpg",
   "images/synthetic_test/synthetici_005622.jpg"
  ],
- "candidate": "TensorRT FP16 pad 0"
+ "candidate": "TensorRT FP16 pad 0 batch max4"
 }

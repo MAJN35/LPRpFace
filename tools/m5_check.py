@@ -115,7 +115,7 @@ def main(argv=None) -> int:
         res = {"emit_seconds": round(emit_s, 3), "emitter": dict(em.stats), "delivered_so_far": sink.stats,
                "buffered_in_producer": buffered}
         print(json.dumps(res))
-        ok = emit_s < 1.0 and em.stats["emitted"] == a.n and buffered == a.n
+        ok = emit_s < 1.0 and em.stats["emitted"] == a.n and buffered >= a.n  # librdkafka len() also counts internal requests
         # keep the producer alive so the buffered messages go out when the broker returns
         deadline = time.time() + a.wait
         while len(sink.p) and time.time() < deadline:

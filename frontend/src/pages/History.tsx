@@ -22,7 +22,7 @@ export function History() {
     <>
       <h1>History</h1><p className="sub">Search by Persian or Latin plate, any digit style or spacing.</p>
       <form className="card raised filters" onSubmit={apply} role="search">
-        <label>Plate<input className="inset" value={draft.q} onChange={set("q")} placeholder="۱۲ب۳۴۵ or 12 Be 345" /></label>
+        <label>Plate<input className="inset" dir="auto" value={draft.q} onChange={set("q")} placeholder="e.g. 12 Be 345" /></label>
         <label>Camera<input className="inset" value={draft.camera_id} onChange={set("camera_id")} /></label>
         <label>From<input className="inset" type="datetime-local" value={draft.from} onChange={set("from")} /></label>
         <label>To<input className="inset" type="datetime-local" value={draft.to} onChange={set("to")} /></label>

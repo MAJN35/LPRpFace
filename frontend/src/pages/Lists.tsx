@@ -133,7 +133,7 @@ function AddPlate({ list, persons, run }: { list: ListStatus; persons: PersonEnt
   }
   return (
     <form className="card raised filters" onSubmit={submit} aria-label="Add plate">
-      <label>Plate (Persian or Latin)<input className="inset" required value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="۱۲ ب ۳۴۵ | ۶۷ or 12B34567" /></label>
+      <label>Plate (Persian or Latin)<input className="inset" dir="auto" required value={plate} onChange={(e) => setPlate(e.target.value)} placeholder="e.g. 12B34567" /></label>
       <label>Person<select className="inset" value={person} onChange={(e) => setPerson(Number(e.target.value))}>
         <option value={0}>—</option>{persons.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}</select></label>
       <label>Notes<input className="inset" value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
