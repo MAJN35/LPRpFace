@@ -117,7 +117,9 @@ class LprPipeline:
     def _build(self):
         cfg = self.cfg
         self.pipeline = Gst.Pipeline.new("lpr")
-        live = any(s.is_live for s in self.configs.values())
+        # A file played in real time is paced like a camera: with a non-live muxer and a synced sink the pipeline
+        # stalled after a few frames (measured), with a live muxer it runs.
+        live = any(s.is_live or (s.type == "file" and s.realtime) for s in self.configs.values())
         self.mux = self._make("nvstreammux", "mux", batch_size=cfg.max_batch, width=cfg.mux_width,
                               height=cfg.mux_height, enable_padding=1, live_source=1 if live else 0,
                               batched_push_timeout=cfg.batched_push_timeout_us, attach_sys_ts=1)
@@ -143,7 +145,7 @@ class LprPipeline:
                       self._make("rtspclientsink", "outrtsp", location=cfg.output_rtsp, protocols=4)]
         else:
             sync = any(s.type == "file" and s.realtime for s in self.configs.values())
-            chain.append(self._make("fakesink", "sink", sync=sync, async_=False, qos=False))
+            chain.append(self._make("fakesink", "sink", sync=sync, qos=False))
         for a, b in zip(chain, chain[1:]):
             if not a.link(b):
                 raise RuntimeError(f"cannot link {a.get_name()} -> {b.get_name()}")

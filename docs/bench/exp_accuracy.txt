@@ -1,0 +1,4 @@
+[baseline max_fps=10 interval=0 roi=none] correct events 37 / ~38 clip appearances (99 %), wrong/partial events 0, frames voted median 10
+[maxfps3 max_fps=3 interval=0 roi=none] correct events 37 / ~38 clip appearances (99 %), wrong/partial events 0, frames voted median 10
+[interval2 max_fps=10 interval=2 roi=none] correct events 29 / ~38 clip appearances (77 %), wrong/partial events 2, frames voted median 7
+[roi max_fps=10 interval=0 roi=roi] correct events 31 / ~38 clip appearances (83 %), wrong/partial events 9, frames voted median 8

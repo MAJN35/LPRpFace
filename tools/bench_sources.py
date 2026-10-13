@@ -54,7 +54,7 @@ def run_one(n, a):
              "max_fps": a.max_fps, "min_plate_px": 40} for k in range(n)]
     if a.roi:
         for s in srcs:
-            s["roi"] = [[0, 0.3], [1, 0.3], [1, 1], [0, 1]]   # experiment: lower 70 % of the frame
+            s["roi"] = [[0.2, 0.3], [0.8, 0.3], [0.8, 1], [0.2, 1]]   # experiment: central 60 % width, lower 70 %
     cfg = REPO / "out" / f"bench_sources_{n}.yaml"
     cfg.parent.mkdir(exist_ok=True)
     cfg.write_text(json.dumps({"sources": srcs}))

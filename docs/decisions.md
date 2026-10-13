@@ -261,3 +261,11 @@ Format: date, decision, reason, alternatives, source.
   reproduce the letterbox).
 - **max_fps** = `videorate drop-only` after decode; **interval** = nvinfer `interval`.
 - **Control API** binds 0.0.0.0 inside the container network only (never published); dev runs bind 127.0.0.1.
+
+## 2026-10-13: Real-time file playback (M8)
+
+- **Finding:** a video file with `realtime: true` as the only source (non-live muxer, synced sink) stalled after 4
+  frames. Tried: (1) without `videorate` — still stalled; (2) sink `async` default — still stalled; (3) muxer
+  `live-source=1` whenever a real-time file is present — runs. Kept (3); `sink async=false` also removed.
+- A file is still pulled as fast as inference allows (no frame drops), so camera-like accuracy experiments use the
+  test video served as RTSP by mediamtx instead (`tools/exp_video_accuracy.sh`).

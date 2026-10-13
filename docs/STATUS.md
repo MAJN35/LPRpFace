@@ -144,6 +144,19 @@ PENDING (needs device): live video in the browser needs an approved WebRTC/HLS g
 Decisions needed: approve a live-video gateway (mediamtx can serve WebRTC/HLS from the annotated output stream)
 ```
 
+## Incident: Jetson froze on 2026-10-13 after 16:03 (local time)
+
+- **Running at the time:** the camera-like accuracy experiments (`tools/exp_video_accuracy.sh`, four DeepStream runs
+  one after another over RTSP from mediamtx). All four had finished: the last (ROI) ended cleanly at 16:03:33
+  (SIGTERM, final stats: 498 frames inferred, 40 events, 0 errors) and its result was written to
+  `docs/bench/exp_accuracy.txt`. The freeze came at or right after that point; the mediamtx test server (two looping
+  ffmpeg publishers) was still running.
+- **Last memory reading:** none. These runs had no tegrastats log, and the journal of that boot was not persistent.
+  The closest measurement: the 2-camera benchmark minutes before peaked at 5,255 MB used RAM (of 6,833 MB).
+- **Since then:** persistent journald and earlyoom on (user); every run goes through `tools/guarded_run.sh`
+  (docker `--memory=5g`, tegrastats log to file, watchdog kills the run below 800 MB available RAM), one pipeline at
+  a time, sources increased one step at a time. Private images are never viewed, only measured numerically.
+
 ## Open items / PENDING (all)
 
 1. USB and CSI cameras: not attached; configs and steps in the M4 report.
