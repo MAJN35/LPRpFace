@@ -136,11 +136,15 @@ try {
   await shot("history_freezone_fa");
 
   // the rest in English (language switch, remembered)
-  await page.evaluate(() => [...document.querySelectorAll("nav.side button")].find((b) => b.textContent === "English").click());
+  // language and notification switches live in Settings
+  await page.goto(`${URL_}/settings`, { waitUntil: "networkidle0" });
+  check(!(await page.$("nav.side [role=group][aria-label='زبان']")), "language switch is in Settings, not the sidebar");
+  await page.evaluate(() => [...document.querySelectorAll("main button")].find((b) => b.textContent === "English").click());
   await page.goto(URL_, { waitUntil: "networkidle0" });
   const htmlEn = await page.evaluate(() => [document.documentElement.lang, document.documentElement.dir, localStorage.getItem("lpr.lang")].join(" "));
   check(htmlEn === "en ltr en", `language switch to English is remembered (${htmlEn})`);
   await page.waitForFunction(() => __all().includes("Recent plates"));
+  check((await text()).includes("Recent people"), "overview shows the recent people log");
   await new Promise((r) => setTimeout(r, 1500));
   // real API data: the recent table has rows (with a live camera the newest rows are camera events, not demo plates)
   const recentRows = await page.$$eval("section[aria-labelledby=recent-h] tbody tr", (r) => r.length);

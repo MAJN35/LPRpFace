@@ -7,8 +7,8 @@ export type Lang = "fa" | "en";
 const KEY = "lpr.lang";
 
 const fa = {
-  "app.brand": "پلاک‌خوان",
-  "nav.overview": "نمای کلی", "nav.live": "زنده", "nav.history": "جستجوی پلاک", "nav.lists": "فهرست‌ها",
+  "app.brand": "کنترل تردد",
+  "nav.overview": "نمای کلی", "nav.live": "زنده", "nav.history": "پلاک‌ها", "nav.lists": "فهرست‌ها",
   "nav.health": "سلامت سامانه", "nav.settings": "تنظیمات", "nav.signout": "خروج", "nav.main": "منوی اصلی",
   "nav.collapse": "جمع کردن منو", "nav.expand": "باز کردن منو",
   "nav.people": "اشخاص", "nav.library": "کتابخانه تصاویر",
@@ -55,7 +55,7 @@ const fa = {
   "pw.current": "رمز فعلی", "pw.new": "رمز تازه", "pw.repeat": "تکرار رمز تازه", "pw.submit": "تغییر رمز", "pw.busy": "در حال ذخیره…",
   "pw.short": "رمز تازه باید دست‌کم ۱۲ نویسه باشد.", "pw.mismatch": "دو رمز تازه یکسان نیستند.", "pw.wrong": "رمز فعلی نادرست است.",
   "ov.title": "نمای کلی", "ov.sub": "۲۴ ساعت گذشته", "ov.model": "مدل {version} · {precision}", "ov.read": "پلاک‌های خوانده‌شده (۲۴ ساعت)",
-  "ov.valid": "قالب معتبر", "ov.online": "منابع فعال", "ov.fps": "فریم ورودی", "ov.recent": "آخرین پلاک‌ها", "ov.noPlates": "هنوز پلاکی ثبت نشده است.",
+  "ov.valid": "قالب معتبر", "ov.online": "منابع فعال", "ov.fps": "فریم ورودی", "ov.recent": "آخرین پلاک‌ها", "ov.people": "آخرین اشخاص", "ov.noPeople": "هنوز شخصی دیده نشده است.", "ov.unmatched": "چهره تطبیق‌نشده", "ov.noPlates": "هنوز پلاکی ثبت نشده است.",
   "ov.sources": "منابع", "ov.noSources": "منبعی تعریف نشده است.", "ov.lastEvent": "آخرین رویداد {time}",
   "ov.infDown": "سرویس تشخیص در دسترس نیست.", "ov.status": "وضعیت سامانه",
   "col.time": "زمان", "col.camera": "دوربین", "col.plate": "پلاک", "col.type": "نوع", "col.list": "فهرست", "col.status": "وضعیت",
@@ -111,7 +111,7 @@ const fa = {
   "set.enable": "فعال‌سازی", "set.disable": "غیرفعال‌سازی", "set.remove": "حذف", "set.add": "افزودن منبع", "set.added": "منبع {id} افزوده شد.",
   "set.enabled": "{id} فعال شد.", "set.disabled": "{id} غیرفعال شد.", "set.removed": "{id} حذف شد.", "set.failed": "ناموفق: {m}",
   "set.recognize": "تشخیص پلاک در یک تصویر", "set.fileHint": "JPEG یا PNG، حداکثر ۱۰ مگابایت", "set.upload": "بارگذاری",
-  "set.processing": "در حال پردازش…", "set.noResult": "پس از ۳۰ ثانیه نتیجه‌ای نیامد", "set.appearance": "ظاهر",
+  "set.processing": "در حال پردازش…", "set.noResult": "پس از ۳۰ ثانیه نتیجه‌ای نیامد", "set.appearance": "ظاهر", "set.notifications": "اعلان‌ها", "set.language": "زبان",
   "set.theme.auto": "خودکار", "set.theme.light": "روشن", "set.theme.dark": "تیره",
   "lists.title": "فهرست‌ها", "lists.sub": "فهرست مجاز، ممنوع و نامشخص برای پلاک‌ها و اشخاص. شخص یک رکورد پیوندخورده به پلاک است؛ هیچ‌کس با چهره شناسایی نمی‌شود.",
   "lists.kind": "نوع", "lists.plates": "پلاک‌ها", "lists.persons": "اشخاص", "lists.list": "فهرست", "lists.search": "جستجو",
@@ -129,8 +129,8 @@ const fa = {
 export type Key = keyof typeof fa;
 
 const en: Record<Key, string> = {
-  "app.brand": "Plate recognition",
-  "nav.overview": "Overview", "nav.live": "Live", "nav.history": "Plate search", "nav.lists": "Lists", "nav.health": "System health",
+  "app.brand": "Access control",
+  "nav.overview": "Overview", "nav.live": "Live", "nav.history": "Plates", "nav.lists": "Lists", "nav.health": "System health",
   "nav.settings": "Settings", "nav.signout": "Sign out", "nav.main": "Main",
   "nav.collapse": "Collapse menu", "nav.expand": "Expand menu",
   "nav.people": "People", "nav.library": "Snapshot library",
@@ -177,7 +177,7 @@ const en: Record<Key, string> = {
   "pw.current": "Current password", "pw.new": "New password", "pw.repeat": "Repeat new password", "pw.submit": "Change password", "pw.busy": "Saving…",
   "pw.short": "The new password needs at least 12 characters.", "pw.mismatch": "The two new passwords differ.", "pw.wrong": "The current password is wrong.",
   "ov.title": "Overview", "ov.sub": "Last 24 hours", "ov.model": "model {version} · {precision}", "ov.read": "Plates read (24 h)",
-  "ov.valid": "Valid format", "ov.online": "Sources online", "ov.fps": "Frames in", "ov.recent": "Recent plates", "ov.noPlates": "No plates recorded yet.",
+  "ov.valid": "Valid format", "ov.online": "Sources online", "ov.fps": "Frames in", "ov.recent": "Recent plates", "ov.people": "Recent people", "ov.noPeople": "No people seen yet.", "ov.unmatched": "Unmatched face", "ov.noPlates": "No plates recorded yet.",
   "ov.sources": "Sources", "ov.noSources": "No sources configured.", "ov.lastEvent": "Last event {time}",
   "ov.infDown": "Inference service unreachable.", "ov.status": "System status",
   "col.time": "Time", "col.camera": "Camera", "col.plate": "Plate", "col.type": "Type", "col.list": "List", "col.status": "Status",
@@ -233,7 +233,7 @@ const en: Record<Key, string> = {
   "set.enable": "Enable", "set.disable": "Disable", "set.remove": "Remove", "set.add": "Add source", "set.added": "Source {id} added.",
   "set.enabled": "{id} enabled.", "set.disabled": "{id} disabled.", "set.removed": "{id} removed.", "set.failed": "Failed: {m}",
   "set.recognize": "Recognize an image", "set.fileHint": "JPEG or PNG, max 10 MB", "set.upload": "Upload",
-  "set.processing": "Processing…", "set.noResult": "no result after 30 s", "set.appearance": "Appearance",
+  "set.processing": "Processing…", "set.noResult": "no result after 30 s", "set.appearance": "Appearance", "set.notifications": "Notifications", "set.language": "Language",
   "set.theme.auto": "auto", "set.theme.light": "light", "set.theme.dark": "dark",
   "lists.title": "Lists", "lists.sub": "Whitelist, blocklist and unknown for plates and persons. Persons are records linked to plates; nobody is identified by face.",
   "lists.kind": "Kind", "lists.plates": "Plates", "lists.persons": "Persons", "lists.list": "List", "lists.search": "Search",
@@ -258,7 +258,7 @@ function initial(): Lang {
 export function applyDocumentLang(lang: Lang) {
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
-  document.title = lang === "fa" ? "EdgeTech · پلاک‌خوان" : "EdgeTech · Plate recognition";
+  document.title = lang === "fa" ? "EdgeTech · کنترل تردد" : "EdgeTech · Access control";
 }
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (k: Key, vars?: Record<string, string | number>) => string;

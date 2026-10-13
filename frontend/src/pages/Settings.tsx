@@ -1,14 +1,19 @@
-import { Monitor, Moon, Play, Plus, RefreshCw, Square, Sun, Trash2, Upload } from "lucide-react";
+import { Bell, BellOff, BellRing, Monitor, Moon, Play, Plus, RefreshCw, Square, Sun, Trash2, Upload } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { ApiError, Camera, api } from "../api";
 import { Btn, useActions } from "../components/Button";
 import { LiquidGroup } from "../components/LiquidIndicator";
+import { LangSwitch } from "../components/LangSwitch";
+import { SysState } from "../components/systemNotify";
 import { Plate, StateView, useApi } from "../components/ui";
 import { Key, useI18n } from "../i18n";
 
 type Job = { job_id: string; status?: string; events?: { plate_string_fa: string; plate_string_latin: string; plate_type?: string; zone?: string | null; is_valid: boolean | null }[]; error?: string };
 
-export function Settings({ role, onTheme }: { role: string; onTheme: (t: "light" | "dark" | "auto") => void }) {
+export function Settings({ role, onTheme, notify = true, onNotify, sys = "unsupported", onSys }: {
+  role: string; onTheme: (t: "light" | "dark" | "auto") => void;
+  notify?: boolean; onNotify?: (on: boolean) => void; sys?: SysState; onSys?: (on: boolean) => void;
+}) {
   const { t, num } = useI18n();
   const cams = useApi<Camera[]>("/cameras");
   const canEdit = role === "admin" || role === "operator";
@@ -87,6 +92,17 @@ export function Settings({ role, onTheme }: { role: string; onTheme: (t: "light"
         <LiquidGroup selector='[aria-pressed="true"]' activeKey={theme} className="row" role="group" aria-label={t("set.appearance")}>{(["auto", "light", "dark"] as const).map((th) => (
           <Btn key={th} icon={{ auto: Monitor, light: Sun, dark: Moon }[th]} aria-pressed={theme === th}
             onClick={() => { setTheme(th); onTheme(th); }}>{t(`set.theme.${th}` as Key)}</Btn>))}</LiquidGroup>
+      </section>
+      <section className="card raised" aria-labelledby="ntf-h"><h2 id="ntf-h">{t("set.notifications")}</h2>
+        <div className="row">
+          <Btn icon={notify ? Bell : BellOff} aria-pressed={notify} onClick={() => onNotify?.(!notify)}>{t(notify ? "notify.on" : "notify.off")}</Btn>
+          <Btn icon={sys === "on" ? BellRing : BellOff} aria-pressed={sys === "on"} disabled={sys === "unsupported" || sys === "insecure" || sys === "denied"}
+            onClick={() => onSys?.(sys !== "on")}>{t(sys === "on" ? "notify.systemOn" : "notify.systemOff")}</Btn>
+        </div>
+        <p className="muted small">{t("notify.hint")}{sys === "insecure" ? ` · ${t("notify.needHttps")}` : sys === "denied" ? ` · ${t("notify.systemDenied")}` : ""}</p>
+      </section>
+      <section className="card raised" aria-labelledby="lang-h"><h2 id="lang-h">{t("set.language")}</h2>
+        <LangSwitch />
       </section>
     </>
   );

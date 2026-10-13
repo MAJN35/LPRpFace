@@ -1,13 +1,15 @@
 import { Link } from "react-router-dom";
-import { Page, Stats, Status, query } from "../api";
+import { FaceSummary, ListPage, Page, Stats, Status, query } from "../api";
 import { ListBadge, Plate, StaleBanner, StateView, Validity, fmtTime, useApi } from "../components/ui";
 import { useI18n } from "../i18n";
+import { FaceThumb, personName } from "./People";
 
 export function Overview() {
   const { t, num } = useI18n();
   const stats = useApi<Stats>("/stats?hours=24", 15000);
   const status = useApi<Status>("/status", 5000);
   const recent = useApi<Page>(`/events${query({ limit: 8 })}`, 5000);
+  const people = useApi<ListPage<FaceSummary>>(`/faces${query({ limit: 8 })}`, 5000);   // latest face sightings
   const sources = status.data?.inference.sources ?? {};
   const online = Object.values(sources).filter((s) => s.status === "live" || s.status === "running").length;
   const fps = Object.values(sources).reduce((a, s) => a + (s.fps_in ?? 0), 0);
@@ -50,6 +52,25 @@ export function Overview() {
           {stats.data?.last_event_at && <p className="muted">{t("ov.lastEvent", { time: fmtTime(stats.data.last_event_at) })}</p>}
         </section>
       </div>
+      <section className="card raised" aria-labelledby="people-h"><h2 id="people-h">{t("ov.people")}</h2>
+        <StateView hasData={!!people.data} loading={people.loading} error={people.error} empty={!people.data?.items.length} emptyText={t("ov.noPeople")} onRetry={people.reload}>
+          <div className="recent-people">
+            {people.data?.items.map((f) => {
+              const name = f.person_id ? personName({ id: f.person_id, full_name: f.person_name ?? "", auto_named: f.person_auto }, t) : t("ov.unmatched");
+              return (
+                <Link key={f.id} to={f.person_id ? `/people/${f.person_id}` : "/library"} className="recent-person inset">
+                  <FaceThumb id={f.has_snapshot ? f.id : null} size={56} alt="" />
+                  <span className="recent-person-info">
+                    <strong className={f.person_auto || !f.person_id ? "muted" : undefined}>{name}</strong>
+                    <span className="muted small">{f.camera_id} · {fmtTime(f.timestamp)}</span>
+                    <ListBadge status={f.list_status} />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </StateView>
+      </section>
     </>
   );
 }

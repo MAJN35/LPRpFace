@@ -1,11 +1,10 @@
-import { Activity, Bell, BellOff, BellRing, Cctv, Images, UsersRound, Gauge, ListChecks, LogOut, LucideIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
+import { Activity, Cctv, Images, UsersRound, Gauge, ListChecks, LogOut, LucideIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
   ScanSearch, Settings as SettingsIcon } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, auth } from "./api";
 import { Btn } from "./components/Button";
 import { LiquidIndicator } from "./components/LiquidIndicator";
-import { LangSwitch } from "./components/LangSwitch";
 import { Logo } from "./components/Logo";
 import { Notifications, readNotify, storeNotify } from "./components/Notifications";
 import { SysState, setSys, sysState } from "./components/systemNotify";
@@ -92,17 +91,8 @@ export function App() {
           <LiquidIndicator group={menu} selector="a.active" activeKey={`${pathname}|${collapsed}|${lang}`} className="bar" />
         </div>
         <div className="side-foot">
-          <Btn icon={notify ? Bell : BellOff} className="nav-out" iconOnly={collapsed} aria-pressed={notify}
-            label={t(notify ? "notify.mute" : "notify.unmute")} tip={collapsed ? undefined : t("notify.hint")}
-            onClick={() => { storeNotify(!notify); setNotify(!notify); }}>{t(notify ? "notify.on" : "notify.off")}</Btn>
-          <Btn icon={sys === "on" ? BellRing : BellOff} className="nav-out" iconOnly={collapsed} aria-pressed={sys === "on"}
-            disabled={sys === "unsupported" || sys === "insecure" || sys === "denied"}
-            label={sys === "insecure" ? t("notify.needHttps") : sys === "denied" ? t("notify.systemDenied") : t(sys === "on" ? "notify.systemOn" : "notify.systemOff")}
-            tip={collapsed ? undefined : sys === "insecure" ? t("notify.needHttps") : sys === "denied" ? t("notify.systemDenied") : undefined}
-            onClick={async () => setSysState(await setSys(sys !== "on"))}>{t(sys === "on" ? "notify.systemOn" : "notify.systemOff")}</Btn>
           <Btn icon={LogOut} flipRtl className="nav-out" iconOnly={collapsed} label={t("nav.signout")}
             onClick={() => { auth.set(null); setRole(null); }}>{t("nav.signout")}</Btn>
-          <LangSwitch compact={collapsed} />
         </div>
       </nav>
       <Notifications enabled={notify} />
@@ -119,7 +109,8 @@ export function App() {
           <Route path="/library" element={<Library role={role} />} />
           <Route path="/events/:id" element={<EventDetail role={role} />} />
           <Route path="/health" element={<Health />} />
-          <Route path="/settings" element={<Settings role={role} onTheme={applyTheme} />} />
+          <Route path="/settings" element={<Settings role={role} onTheme={applyTheme} notify={notify}
+            onNotify={(on) => { storeNotify(on); setNotify(on); }} sys={sys} onSys={async (on) => setSysState(await setSys(on))} />} />
           <Route path="*" element={<div className="state">{t("common.notFound")}</div>} />
         </Routes>
         </PageFade>
