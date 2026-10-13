@@ -35,10 +35,11 @@ mem_log="$ENGINE_DIR/$name.mem"
 mon=$!
 start=$(date +%s)
 set +e
-docker run --rm --runtime nvidia -v "$repo:/work" -v "$ENGINE_DIR:/engines" -w /work "$IMAGE" \
+docker run --rm --runtime nvidia -u "$(id -u):$(id -g)" --group-add "$(getent group video | cut -d: -f3)" \
+  --group-add "$(getent group render | cut -d: -f3)" -v "$repo:/work" -v "$ENGINE_DIR:/engines" -w /work "$IMAGE" \
   /usr/src/tensorrt/bin/trtexec --onnx="/work/${onnx#$repo/}" --saveEngine="/engines/$name.tmp" \
   --minShapes="$(shape "$MIN_BATCH")" --optShapes="$(shape "$OPT_BATCH")" --maxShapes="$(shape "$MAX_BATCH")" \
-  --memPoolSize=workspace:"$WORKSPACE_MIB" "${flags[@]}" --skipInference --verbose > "$log" 2>&1
+  --memPoolSize=workspace:"$WORKSPACE_MIB" "${flags[@]}" --buildOnly --verbose > "$log" 2>&1
 rc=$?
 set -e
 secs=$(( $(date +%s) - start ))

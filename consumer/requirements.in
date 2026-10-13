@@ -1,0 +1,4 @@
+# Kafka consumer. Lock: consumer/requirements.lock.
+confluent-kafka==2.6.1
+jsonschema==4.23.0
+pytest==8.3.5

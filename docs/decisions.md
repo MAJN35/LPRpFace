@@ -132,3 +132,45 @@ Format: date, decision, reason, alternatives, source.
 - **Note:** `opencv-python` 4.11.0.86 is installed alongside the pinned headless 4.10.0.84 because Ultralytics
   depends on it; `cv2` resolves to 4.11.0 in the tools image. Harmless for CPU tooling.
 - **Source:** `docs/m1_batch_parity_v{1,2}.json`, `models/v{1,2}/export/*.json`.
+
+## 2026-10-13: Standing autonomy for M2–M8 (user instruction)
+
+- **Decision:** Run M2–M8 without pausing; decide with the user's defaults and record here (what, why, how to undo).
+  The "extra M2 (v1 vs v2) and M3 (batch, swap, FP16 parity) items from my previous message" were not in this
+  session; interpreted as: M2 parity and accuracy for both v1 and v2; M3 batch profile 1/2/4 (8 only if 4 builds
+  with ≥ 1.5 GB free), swapfile, FP16 parity with FP32 fallback for failing layers.
+- **Swapfile:** not created. The only storage is the SD card (`lsblk`: mmcblk0, no NVMe/SSD) and the user allows a
+  swapfile only on NVMe/SSD. Existing zram swap (3.3 GB) unchanged. Undo/redo: attach an NVMe/SSD, then create it.
+- **Source:** user message 2026-10-13.
+
+## 2026-10-13: Reader output conventions (M2)
+
+- **Latin transliteration = class names** (`12 Be 345 | 67`, `98 Zhe 594 | 32`, `98 D 750 | 69`): unambiguous
+  (single letters D and S are the diplomatic markers, so Dal/Sin cannot be "D"/"S") and identical to the test-set
+  ground truth (`gt_string_latin`). A.7's example `12 B 345 | 67` is accepted as input: `plate_key()` maps short
+  aliases (B→Be, J→Jim, …; see `LATIN_ALIASES`). Undo: change `_read_standard`/`format_standard` formatting.
+- **Persian form:** `۱۲ ب ۳۴۵ | ۶۷` (physical left-to-right order); Zhe is shown as ♿ (as in the ground truth);
+  D/S stay Latin. `plate_key` (`12Be34567`) is the formatting-independent search key.
+- **Validity:** standard/disabled/diplomatic use the 8-character rule (2 digits + letter + 3 digits + 2 digits);
+  transit = Gaf letter + 3–4 expiry digits; free zone = both rows equal, 5 digits; protocol = `is_valid: null`,
+  `invalid_reason: "not_applicable"` (no validated format rule, A.7). Invalid reads are returned with a reason.
+- **Plate type** is derived from layout and letter only (standard, disabled, diplomatic, transit, freezone,
+  protocol). Colour-based types (taxi, police, government…) cannot be told from classes and are reported as
+  `standard`.
+- **Transit:** the right box's top row is the code, the bottom row the expiry (`YY/M[M]`), from the test-set layout;
+  the earlier "two tallest" rule misread 1/10 synthetic transit plates and was replaced.
+- **Free zone:** top row = Persian, bottom = Latin (same digit classes); per position the more confident row wins;
+  zone = most confident `fz_*` within the plate (margin 25 %, the panel sits at the plate's left edge).
+- **Overall confidence** = weakest character confidence (constrained-decoding score).
+- **Voting:** weight = confidence × size factor (plate width in network input / 120 px, floor 0.2); a frame with the
+  same string and plate IoU ≥ 0.9 as the previous vote gets 0.25 of its weight; runner-up classes add half their
+  score; track timeout 1.5 s; dedup window 30 s per camera and plate key (only valid reads).
+- **Reuse:** `reader/lpr_reader/normalize.py` adapts digit/Arabic-letter normalization and the "ایران-first or
+  physical order" parser from `/home/edgetec/EdgetecLPR/PlateDetector/backend/app/core/plate_format.py` (commit
+  c8c9740). `deepstream/app/config.py` and `pipeline.py` reuse that project's RTSP lessons
+  (`deepstream/src/sources.py`, `deepstream_lpr_app.py`, same commit): split credentials at the last '@', leaky
+  queue per source, drop a live source's EOS and rebuild only that source, backoff 2 s→60 s (auth 5 min→1 h),
+  never reuse a released mux pad index, 20 s no-frame stall detection.
+- **Check:** reader on the ground-truth label boxes (`tools/eval_reader.py --oracle`): standard 8-character plates
+  100 % (263/263 real, 167/167 synthetic), free zone 85/85, protocol 10/10, transit 9/10 (the miss has unlabelled
+  expiry digits in its label file).

@@ -1,0 +1,10 @@
+# M4 test sources (paths inside the container: repo mounted at /work). Real cameras: see deploy/sources.yaml.
+defaults: {max_fps: 10, min_plate_px: 40, face_blur: true, record: false, rtsp_transport: tcp}
+sources:
+  - {id: video-h264, name: "Test video H.264 1080p", type: file, uri: /work/tests/data/private/videos/test_h264.mp4,
+     realtime: false, max_fps: 0}
+  - {id: images, name: "Test image folder", type: image_folder, uri: /work/tests/data/private/images_folder}
+  - {id: video-h265, name: "Test video H.265 1440p", type: file, uri: /work/tests/data/private/videos/test_h265.mp4,
+     realtime: false, max_fps: 0, enabled: false}
+  - {id: cam-01, name: "RTSP test cam-01 (mediamtx)", type: rtsp, uri: "rtsp://127.0.0.1:8554/cam-01", enabled: false}
+  - {id: cam-02, name: "RTSP test cam-02 (mediamtx)", type: rtsp, uri: "rtsp://127.0.0.1:8554/cam-02", enabled: false}

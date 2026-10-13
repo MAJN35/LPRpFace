@@ -1,0 +1,16 @@
+# Backend (FastAPI + Postgres). Lock: backend/requirements.lock (tools/docker/make_lock.py in the pinned base image).
+fastapi==0.115.6
+uvicorn==0.32.1
+websockets==14.1
+sqlalchemy==2.0.36
+asyncpg==0.30.0
+aiosqlite==0.20.0          # unit tests
+alembic==1.14.0
+pydantic==2.10.3
+pydantic-settings==2.6.1
+PyJWT==2.10.1
+bcrypt==4.2.1
+python-multipart==0.0.19
+httpx==0.28.1
+pytest==8.3.5
+pytest-asyncio==0.24.0

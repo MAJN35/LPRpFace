@@ -27,3 +27,7 @@ dist/
 
 # Dataset archives (personal data)
 *.zip
+
+# Host TensorRT/CUDA headers staged for the parser build
+deepstream/.build-include/
+deepstream/parsers/*.so

@@ -27,7 +27,21 @@ RUN curl -fsSL -o /tmp/pyds-1.1.8-py3-none-linux_aarch64.whl "$PYDS_URL" \
  && rm /tmp/pyds-1.1.8-py3-none-linux_aarch64.whl
 
 FROM base AS app
-COPY requirements.lock /tmp/requirements.lock
+COPY deepstream/requirements.lock /tmp/requirements.lock
 RUN pip3 install --no-cache-dir --require-hashes --no-deps -r /tmp/requirements.lock
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+
+# Custom bbox parser. nvdsinfer_custom_impl.h needs the TensorRT and CUDA headers, which this image lacks and
+# NVIDIA's apt repo cannot provide here; build_image.sh stages the host's (JetPack 5.1.2: TensorRT 8.5.2, CUDA 11.4).
+COPY deepstream/.build-include /opt/build-include
+COPY deepstream/parsers /app/parsers
+RUN make -C /app/parsers CXXFLAGS="-O2 -Wall -fPIC -std=c++14 -I/opt/nvidia/deepstream/deepstream/sources/includes \
+      -I/opt/build-include/trt -I/opt/build-include/cuda" \
+ && rm -rf /opt/build-include
+
+COPY reader/lpr_reader /app/lpr_reader
+COPY schemas /app/schemas
+COPY deepstream/app /app/app
+COPY deepstream/configs /app/configs
+COPY models /app/models-meta
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/app
 WORKDIR /app
