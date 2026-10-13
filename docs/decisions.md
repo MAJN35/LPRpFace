@@ -347,3 +347,52 @@ Format: date, decision, reason, alternatives, source.
   a physical keyboard (keydown); on phones the list is used, since buttons do not open a virtual keyboard.
 - **HLS path:** the nginx proxy moved from `/live/` to `/hls/`. A prefix location with proxy_pass makes nginx answer
   `/live` with a redirect to `/live/`, which broke reloading the dashboard's Live page (found by the e2e).
+
+## 2026-10-13: Branding, icons, button motion (user request)
+
+- **Brand:** the user's EdgeTech logo (attached image: "Edge" in the text colour, "Tech" in blue, italic heavy;
+  "VIDEO ANALYTICS"). It is redrawn as an HTML wordmark plus an SVG mark: a licence plate inside a scan viewfinder,
+  crossed by a scan line. Theme tokens (`--brand`, `--text`, `--plate-*`) keep it legible in light and dark mode
+  (`components/Logo.tsx`).
+- **Favicons:** `public/favicon.svg`, the same mark on a fixed dark tile, legible on any tab colour. PNGs at
+  32/180/192/512 (+ maskable) are rasterized from it with the e2e Chromium; `favicon.ico` is 16/32/48. Also
+  `manifest.webmanifest`, apple-touch-icon and theme-color. nginx serves the manifest as `application/manifest+json`.
+- **Icons:** lucide-react 0.469.0 (ISC, tree-shaken, about 1 KB per icon used). The project had no icon library;
+  lucide has every icon the request names. No emoji icons.
+- **Button motion:** one shared `Btn` (`components/Button.tsx`) and CSS only, no animation library:
+  - press scale 0.97 and a ripple from the pointer position;
+  - busy spinner; check or error mark that appears only after the request resolved (`useActions`, one run per
+    key, so no double submits);
+  - icon-only buttons get an aria-label and a tooltip.
+
+  Tokens: `--press`, `--dur-press`, `--dur-nav`. Everything is off under `prefers-reduced-motion`.
+- **Sidebar:** icons before labels (inline start, so right in Persian), an animated active marker, and a collapse
+  toggle (`localStorage["lpr.nav"]`) with tooltips while collapsed. Directional icons (back, sign out, pagination)
+  are mirrored in RTL; others are not.
+- Menu entries that do not exist in this app (datasets, model management, users, analytics) were not added.
+
+## 2026-10-13: Video emit policy, live view fixes, notifications (user request)
+
+- **Emit policy:** events in the dashboard looked like per-frame noise: 77 of 88 phone events in a day had no or too
+  few characters, 42 came from a single frame, and tracks were split. The reader worker now emits one event per
+  tracker track and only when:
+  - the track was read in at least `LPR_MIN_TRACK_FRAMES` = 3 frames;
+  - the result is plausible: a valid plate, or a protocol-type read with at least 4 digits.
+
+  The track timeout went from 1.5 s to `LPR_TRACK_TIMEOUT_S` = 3 s; at about 3.5 inferred frames/s, 1.5 s split one
+  car into several tracks.
+
+  This deliberately departs from A.7 "invalid reads are returned, never dropped" for video, at the user's request.
+  The reader library still returns every read, `LPR_EMIT_INVALID=1` restores the old behaviour, and dropped reads are
+  counted (`dropped_implausible` in /health). Image jobs (uploads) still return whatever was read.
+- **Live view did not play in the user's browser:** nginx logged 19 aborted playlist requests (499). The
+  on-demand detection stream at the inference rate needed longer than hls.js' 10 s to produce LL-HLS parts. The fix:
+  - standard fMP4 HLS (`hlsAlwaysRemux`);
+  - raw camera paths pulled continuously instead of on demand;
+  - player timeouts of 30 s;
+  - runOnDemandStartTimeout of 30 s.
+- **Multiple cameras at once:** a grid with every camera's raw stream side by side (the gateway only remuxes). The
+  detection overlay stays one camera at a time (one encoder; the board's memory), selectable per tile.
+- **Notifications:** an in-page toast for each recognized plate on every page (live WebSocket). It can be muted with
+  the bell (`localStorage["lpr.notify"]`). Blocklist alerts always show and stay until dismissed. No browser or OS
+  push: nothing leaves the device, and the Notification API needs HTTPS anyway.

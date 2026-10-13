@@ -1,5 +1,7 @@
 import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { LucideIcon, RotateCw, ShieldBan, ShieldCheck, ShieldQuestion } from "lucide-react";
 import { ApiError, EventSummary, LISTS, ListStatus, api } from "../api";
+import { ActionState, Btn } from "./Button";
 import { Key, useI18n } from "../i18n";
 
 // Fetch state for a path; re-runs when `path` changes or reload() is called; optional polling.
@@ -44,7 +46,7 @@ export function StateView({ loading, error, empty, emptyText, onRetry, hasData =
   if (error) return (
     <div className="state" role="alert">
       <p className="bad">{error.status === 0 ? t("common.backendDown") : t("common.error", { status: error.status, message: error.message })}</p>
-      {onRetry && <button type="button" onClick={onRetry}>{t("common.retry")}</button>}
+      {onRetry && <Btn icon={RotateCw} onClick={onRetry}>{t("common.retry")}</Btn>}
     </div>
   );
   if (empty && !loading) return <div className="state">{emptyText ?? t("common.empty")}</div>;
@@ -91,6 +93,7 @@ export const fmtTime = (iso: string) =>
 
 const LIST_KEY: Record<ListStatus, Key> = { whitelist: "list.whitelist", blocklist: "list.blocklist", unknown: "list.unknown" };
 const LIST_CLASS: Record<ListStatus, string> = { whitelist: "ok", blocklist: "bad", unknown: "muted" };
+export const LIST_ICON: Record<ListStatus, LucideIcon> = { whitelist: ShieldCheck, blocklist: ShieldBan, unknown: ShieldQuestion };
 export function useListLabel() {
   const { t } = useI18n();
   return (s: ListStatus) => t(LIST_KEY[s]);
@@ -105,22 +108,24 @@ export function PlateType({ type }: { type: string }) {
 export function ListBadge({ status }: { status: ListStatus | undefined }) {
   const label = useListLabel();
   const s = status ?? "unknown";
-  return <span className={`badge inset ${LIST_CLASS[s]}`}>{label(s)}</span>;
+  const Icon = LIST_ICON[s];
+  return <span className={`badge inset ${LIST_CLASS[s]}`}><Icon size={13} strokeWidth={2.2} aria-hidden="true" />{label(s)}</span>;
 }
 
-// One-click move between lists: the current list is pressed; the others move the entry there.
-export function ListSwitch({ value, onChange, disabled, label }: {
+// One-click move between lists: the current list is pressed; the others move the entry there. `pending` shows the
+// spinner on the target list while the move is saved.
+export function ListSwitch({ value, onChange, disabled, label, pending = null, state = "idle" }: {
   value: ListStatus; onChange: (s: ListStatus) => void; disabled?: boolean; label: string;
+  pending?: ListStatus | null; state?: ActionState;
 }) {
   const { t } = useI18n();
   const name = useListLabel();
   return (
     <div role="group" aria-label={t("list.for", { label })} style={{ display: "flex", gap: 6, flexWrap: "nowrap" }}>
       {LISTS.map((s) => (
-        <button key={s} type="button" aria-pressed={value === s} disabled={disabled}
-          className={value === s ? `inset ${LIST_CLASS[s]}` : ""} onClick={() => value !== s && onChange(s)}
-          style={{ padding: "4px 10px", fontSize: 13, whiteSpace: "nowrap", fontWeight: value === s ? 700 : 400 }}>
-          {name(s)}</button>
+        <Btn key={s} icon={LIST_ICON[s]} aria-pressed={value === s} disabled={disabled || state === "busy"}
+          state={pending === s ? state : "idle"} className={`btn-sm${value === s ? ` inset ${LIST_CLASS[s]}` : ""}`}
+          onClick={() => value !== s && onChange(s)}>{name(s)}</Btn>
       ))}
     </div>
   );

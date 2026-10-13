@@ -20,7 +20,10 @@ export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label:
       if (stopped) return;
       setState("connecting");
       hls = new HlsImpl({
-        lowLatencyMode: true, liveSyncDurationCount: 2, manifestLoadingMaxRetry: 0,
+        // The gateway may need several seconds before the first segments of a stream exist (detection stream at the
+        // inference rate): generous timeouts instead of hls.js' 10 s defaults, which made browsers give up.
+        lowLatencyMode: false, liveSyncDurationCount: 2, manifestLoadingTimeOut: 30000, manifestLoadingMaxRetry: 2,
+        levelLoadingTimeOut: 30000, fragLoadingTimeOut: 30000,
         xhrSetup: (xhr) => { if (auth.token) xhr.setRequestHeader("Authorization", `Bearer ${auth.token}`); },
       });
       hls.on(HlsImpl.Events.MANIFEST_PARSED, () => { el.play().catch(() => {}); });

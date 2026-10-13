@@ -50,6 +50,14 @@ try {
   await page.goto(URL_, { waitUntil: "networkidle0" });
   const htmlLang = await page.evaluate(() => [document.documentElement.lang, document.documentElement.dir].join(" "));
   check(htmlLang === "fa rtl", `Persian is the default language (html lang/dir: ${htmlLang})`);
+  // branding: favicons and manifest are served by the production build, the logo is on the login page
+  for (const [path, type] of [["/favicon.svg", "image/svg+xml"], ["/favicon.ico", "image/"], ["/apple-touch-icon.png", "image/png"],
+    ["/icon-192.png", "image/png"], ["/manifest.webmanifest", "application/manifest+json"]]) {
+    const r = await fetch(`${URL_}${path}`);
+    check(r.ok && (r.headers.get("content-type") ?? "").includes(type), `${path} served (${r.status} ${r.headers.get("content-type")})`);
+  }
+  check(await page.$eval("link[rel=icon][type='image/svg+xml']", (l) => l.href.endsWith("/favicon.svg")), "favicon linked in the document");
+  check(!!(await page.$(".login-logo .logo-mark")), "logo on the login page");
   await shot("login");
   // Sign in; the bootstrap admin is forced to change its password first (E2E_NEW_PASSWORD), and later runs sign in
   // with that new password.
@@ -159,6 +167,10 @@ try {
   await ingest(liveEv);
   await page.waitForFunction(() => document.body.innerText.includes("91 Ghaf 445 | 22"), { timeout: 10000 });
   check(true, "live: new event arrives over WebSocket through nginx");
+  await page.waitForSelector(".toasts .toast", { timeout: 5000 });
+  check(true, "notification shown for the detection");
+  await shot("notification");
+  for (const b of await page.$$(".toasts .toast-close")) await b.click();
   await shot("live");
 
   await page.goto(`${URL_}/lists`, { waitUntil: "networkidle0" });
@@ -179,6 +191,21 @@ try {
   await page.waitForFunction(() => document.body.innerText.includes("Events stored"));
   check(true, "system health page");
   await shot("health");
+
+  // sidebar: icons on every item, collapse with tooltips, state remembered
+  const navIcons = await page.$$eval("nav.side a.nav-item", (as) => as.map((a) => !!a.querySelector("svg")));
+  check(navIcons.length === 6 && navIcons.every(Boolean), `every menu item has an icon (${navIcons.length})`);
+  const w0 = await page.$eval("nav.side", (n) => n.getBoundingClientRect().width);
+  await page.click("nav.side .nav-toggle");
+  await new Promise((r) => setTimeout(r, 500));
+  const w1 = await page.$eval("nav.side", (n) => n.getBoundingClientRect().width);
+  const tips = await page.$$eval("nav.side a.nav-item", (as) => as.every((a) => a.dataset.tip && a.textContent.trim()));
+  check(w1 < w0 / 2 && tips, `sidebar collapses (${Math.round(w0)} -> ${Math.round(w1)} px) with tooltips and accessible names`);
+  await page.evaluate(() => document.documentElement.setAttribute("data-theme", "dark"));
+  await new Promise((r) => setTimeout(r, 600));            // let the theme transition finish
+  await shot("collapsed_dark");
+  await page.click("nav.side .nav-toggle");
+  await page.evaluate(() => document.documentElement.removeAttribute("data-theme"));
 
   await page.goto(`${URL_}/settings`, { waitUntil: "networkidle0" });
   await page.waitForFunction(() => document.body.innerText.includes("Appearance"));

@@ -16,6 +16,7 @@ nvpmodel mode 8 (MODE_20W_6CORE), jetson_clocks not changed. Final summary: [`FI
 | M8 | Integration, benchmark, hardening | DONE (USB/CSI and visual face-mask check PENDING) |
 | + | Live view (raw + detections), user request | DONE 2026-10-13 |
 | + | Persian-first dashboard and plate search, user request | DONE 2026-10-13 |
+| + | Branding/icons/button motion; emit policy; live grid; notifications (user requests) | DONE 2026-10-13 |
 
 ## Device facts (measured)
 
@@ -196,6 +197,17 @@ Decisions needed: none (all decided by the user on 2026-10-13)
   on a demo-only stack (screenshots `docs/screenshots/history_*_fa.png`).
 - Fixed along the way: nginx turned the dashboard page `/live` into a redirect to the HLS location `/live/` (401 on
   reload). HLS is now served under `/hls/`.
+
+## Branding, emit policy, live grid, notifications (user requests, 2026-10-13)
+
+- EdgeTech logo (SVG mark + wordmark), favicons and manifest, lucide icons on every menu item and action button,
+  collapsible sidebar with tooltips, shared animated button with real busy, success and error states.
+- Video events: one per track with >= 3 read frames, plausible plates only (`LPR_EMIT_INVALID=1` restores invalid
+  reads); track timeout 3 s.
+- Live: standard HLS and always-ready raw streams (the browser was giving up on slow-starting LL-HLS); grid of all
+  cameras; detections on one camera at a time.
+- Toast notification per detection, mutable; blocklist alerts always shown.
+- Tests: frontend 42/42, DeepStream unit 18/18, backend 26/26, e2e 28/28 on a demo-only stack.
 
 ## Open items / PENDING (all)
 

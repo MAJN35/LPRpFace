@@ -1,6 +1,9 @@
+import { ArrowLeft, Copy } from "lucide-react";
 import { useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { ApiError, EventDetail as Detail, ListStatus, PlateEntry, api, cropUrl, json } from "../api";
+import { Btn, useActions } from "../components/Button";
+import { copyText } from "../components/copy";
 import { ListBadge, ListSwitch, Plate, PlateType, StateView, Validity, fmtTime, useApi, useListLabel } from "../components/ui";
 import { useI18n } from "../i18n";
 
@@ -13,20 +16,30 @@ export function EventDetail({ role = "viewer" }: { role?: string }) {
   const canEdit = role === "admin" || role === "operator";
   const [current, setCurrent] = useState<ListStatus | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
+  const [pending, setPending] = useState<ListStatus | null>(null);
+  const actions = useActions();
+  const navigate = useNavigate();
   async function putOnList(to: ListStatus) {
     if (!e) return;
+    setPending(to);
     try {
-      const p = await api<PlateEntry>("/plates", json({ plate: e.plate_string_latin, list_status: to, upsert: true }));
-      setCurrent(p.list_status); setMsg(t("ev.nowOn", { list: listLabel(p.list_status) }));
+      const p = await actions.run("list", () => api<PlateEntry>("/plates", json({ plate: e.plate_string_latin, list_status: to, upsert: true })));
+      if (p) { setCurrent(p.list_status); setMsg(t("ev.nowOn", { list: listLabel(p.list_status) })); }
     } catch (err) { setMsg(t("ev.failed", { m: err instanceof ApiError ? err.message : "" })); }
   }
   return (
     <>
+      <div className="page-head">
+        <Btn icon={ArrowLeft} flipRtl variant="ghost" onClick={() => navigate(-1)}>{t("ev.back")}</Btn>
+      </div>
       <h1>{t("ev.title")}</h1><p className="sub">{t("ev.sub")}</p>
       <StateView hasData={!!ev.data} loading={ev.loading} error={ev.error} onRetry={ev.reload}>
         {e && (
           <div className="grid2">
-            <section className="card raised" aria-labelledby="ev-h"><h2 id="ev-h"><Plate e={e} /></h2>
+            <section className="card raised" aria-labelledby="ev-h">
+              <div className="row" style={{ justifyContent: "space-between" }}><h2 id="ev-h"><Plate e={e} /></h2>
+                {e.plate_string_latin && <Btn icon={Copy} iconOnly variant="ghost" label={t("ev.copy")} state={actions.state("copy")}
+                  onClick={() => actions.run("copy", () => copyText(`${e.plate_string_fa} (${e.plate_string_latin})`)).catch(() => undefined)} />}</div>
               <dl style={{ display: "grid", gridTemplateColumns: "max-content 1fr", gap: "6px 16px", margin: 0 }}>
                 <dt className="muted">{t("ev.time")}</dt><dd>{fmtTime(e.timestamp)}</dd>
                 <dt className="muted">{t("ev.source")}</dt><dd>{e.camera_id} ({e.source_type}){e.source_file ? ` · ${e.source_file}` : ""}</dd>
@@ -38,7 +51,7 @@ export function EventDetail({ role = "viewer" }: { role?: string }) {
               </dl>
               {canEdit && e.is_valid && e.plate_string_latin && (<>
                 <h2 style={{ marginTop: 20 }}>{t("ev.putOnList")}</h2>
-                <ListSwitch value={current ?? e.list_status} label={e.plate_string_latin} onChange={putOnList} />
+                <ListSwitch value={current ?? e.list_status} label={e.plate_string_latin} onChange={putOnList} pending={pending} state={actions.state("list")} />
                 {msg && <p role="status" className="muted">{msg}</p>}
               </>)}
               <h2 style={{ marginTop: 20 }}>{t("ev.chars")}</h2>

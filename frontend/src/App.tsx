@@ -1,7 +1,12 @@
+import { Activity, Bell, BellOff, Cctv, Gauge, ListChecks, LogOut, LucideIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
+  ScanSearch, Settings as SettingsIcon } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, auth } from "./api";
+import { Btn } from "./components/Button";
 import { LangSwitch } from "./components/LangSwitch";
+import { Logo } from "./components/Logo";
+import { Notifications, readNotify, storeNotify } from "./components/Notifications";
 import { Key, useI18n } from "./i18n";
 import { EventDetail } from "./pages/EventDetail";
 import { Health } from "./pages/Health";
@@ -14,6 +19,11 @@ import { Overview } from "./pages/Overview";
 import { Settings } from "./pages/Settings";
 
 const THEME_KEY = "lpr.theme";
+const NAV_KEY = "lpr.nav";                       // "collapsed" | "expanded", per browser like the theme
+const LINKS: [string, Key, LucideIcon][] = [
+  ["/", "nav.overview", Gauge], ["/live", "nav.live", Cctv], ["/history", "nav.history", ScanSearch],
+  ["/lists", "nav.lists", ListChecks], ["/health", "nav.health", Activity], ["/settings", "nav.settings", SettingsIcon],
+];
 function applyTheme(t: string) {
   if (t === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme = t;
   try { localStorage.setItem(THEME_KEY, t); } catch { /* storage blocked */ }
@@ -25,8 +35,16 @@ function PageFade({ children }: { children: React.ReactNode }) {
   return <div className="page" key={pathname}>{children}</div>;
 }
 
+function readNav() { try { return localStorage.getItem(NAV_KEY) === "collapsed"; } catch { return false; } }
+
 export function App() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
+  const [collapsed, setCollapsed] = useState(readNav);
+  const [notify, setNotify] = useState(readNotify);
+  const toggleNav = () => setCollapsed((c) => {
+    try { localStorage.setItem(NAV_KEY, c ? "expanded" : "collapsed"); } catch { /* storage blocked */ }
+    return !c;
+  });
   const [role, setRole] = useState<string | null>(null);
   const [mustChange, setMustChange] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -42,15 +60,34 @@ export function App() {
   if (!checked) return <div className="state" role="status">{t("common.loading")}</div>;
   if (!role) return <Login onDone={(s) => { setRole(s.role); setMustChange(s.mustChange); }} />;
   if (mustChange) return <ChangePassword onDone={() => setMustChange(false)} />;
-  const links: [string, Key][] = [["/", "nav.overview"], ["/live", "nav.live"], ["/history", "nav.history"], ["/lists", "nav.lists"], ["/health", "nav.health"], ["/settings", "nav.settings"]];
+  // The sidebar sits at the inline start (right in Persian): the collapse icon follows that side.
+  const rtl = lang === "fa";
+  const CollapseIcon = collapsed ? (rtl ? PanelRightOpen : PanelLeftOpen) : (rtl ? PanelRightClose : PanelLeftClose);
   return (
-    <div className="shell">
-      <nav className="side raised" aria-label={t("nav.main")}>
-        <strong style={{ padding: "6px 14px 12px" }}>{t("app.brand")}</strong>
-        {links.map(([to, label]) => <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>{t(label)}</NavLink>)}
-        <button type="button" onClick={() => { auth.set(null); setRole(null); }} style={{ marginTop: 12 }}>{t("nav.signout")}</button>
-        <LangSwitch />
+    <div className={`shell${collapsed ? " nav-collapsed" : ""}`}>
+      <nav className={`side raised${collapsed ? " collapsed" : ""}`} aria-label={t("nav.main")}>
+        <div className="side-head">
+          <Logo compact={collapsed} />
+          <Btn icon={CollapseIcon} iconOnly variant="ghost" className="nav-toggle" label={t(collapsed ? "nav.expand" : "nav.collapse")}
+            aria-expanded={!collapsed} onClick={toggleNav} />
+        </div>
+        {LINKS.map(([to, label, Icon]) => (
+          <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `nav-item has-tip${isActive ? " active" : ""}`}
+            data-tip={t(label)}>
+            <Icon className="nav-icon" size={20} strokeWidth={2} aria-hidden="true" />
+            <span className="nav-label">{t(label)}</span>
+          </NavLink>
+        ))}
+        <div className="side-foot">
+          <Btn icon={notify ? Bell : BellOff} className="nav-out" iconOnly={collapsed} aria-pressed={notify}
+            label={t(notify ? "notify.mute" : "notify.unmute")} tip={collapsed ? undefined : t("notify.hint")}
+            onClick={() => { storeNotify(!notify); setNotify(!notify); }}>{t(notify ? "notify.on" : "notify.off")}</Btn>
+          <Btn icon={LogOut} flipRtl className="nav-out" iconOnly={collapsed} label={t("nav.signout")}
+            onClick={() => { auth.set(null); setRole(null); }}>{t("nav.signout")}</Btn>
+          <LangSwitch compact={collapsed} />
+        </div>
       </nav>
+      <Notifications enabled={notify} />
       <main>
         <PageFade>
         <Routes>

@@ -181,3 +181,8 @@ Bugs this deployment test found and fixed (`docs/decisions.md`): the event schem
   English switch. The plate search draws a realistic Iranian plate whose positions you fill by list or by typing,
   with exact and partial match. Only the standard plate layout is verified; the other types are marked approximate
   (open item 10 in STATUS.md).
+- **Branding and interaction:** EdgeTech logo, favicons, icons on all menus and buttons, and button feedback that
+  reports success only after the server confirmed.
+- **Fewer, better events:** one event per tracked plate (seen in at least 3 frames), plausible plates only.
+- **Live grid and notifications:** every camera's raw stream at once, detections on one selected camera, and an
+  on-screen notification for each recognized plate.

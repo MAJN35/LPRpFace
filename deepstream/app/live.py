@@ -1,7 +1,8 @@
 """Live view: raw camera streams and per-camera detection overlay (OSD) through the mediamtx gateway.
 
 * Raw: for network cameras (rtsp/rtmp/http/hls) a mediamtx path ``<id>`` is registered through mediamtx's internal
-  API with the camera URI as an on-demand source: mediamtx pulls the camera only while someone watches.
+  API with the camera URI as its source, pulled continuously so several views open at once without a start-up wait
+  (a second camera session; mediamtx only remuxes, no decoding).
 * OSD (detection stream): one source at a time (memory: an encoder per camera does not fit the 8 GB board, and
   nvstreamdemux cannot add pads at runtime - both measured). The first viewer of ``<id>-osd`` selects the source
   (mediamtx runOnDemand -> control API); see ``LiveOsd``. A separate small publisher pipeline (appsrc ->
@@ -67,7 +68,7 @@ class MediaGateway:
             with self._lock:
                 paths = dict(self._paths)
             for sid, uri in paths.items():
-                conf = {"source": uri, "sourceOnDemand": True, "sourceOnDemandCloseAfter": "20s", "rtspTransport": "tcp"}
+                conf = {"source": uri, "sourceOnDemand": False, "rtspTransport": "tcp"}
                 code = self._call("POST", f"/v3/config/paths/add/{sid}", conf)
                 if code == 400:  # exists: make sure it points at the current URI
                     code = self._call("PATCH", f"/v3/config/paths/patch/{sid}", conf)

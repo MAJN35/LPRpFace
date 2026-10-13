@@ -5,6 +5,7 @@ COPY frontend/package.json frontend/package-lock.json ./
 RUN PUPPETEER_SKIP_DOWNLOAD=1 npm ci --no-audit --no-fund
 COPY frontend/index.html frontend/tsconfig.json frontend/vite.config.ts ./
 COPY frontend/src ./src
+COPY frontend/public ./public
 RUN npm run build
 
 FROM nginx:1.27.3-alpine@sha256:814a8e88df978ade80e584cc5b333144b9372a8e3c98872d07137dbf3b44d0e4

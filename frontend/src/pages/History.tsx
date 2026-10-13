@@ -1,6 +1,8 @@
+import { ChevronLeft, ChevronRight, Download, Eraser, RefreshCw, Search } from "lucide-react";
 import { FormEvent, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { EventSummary, Page, auth, query } from "../api";
+import { Btn } from "../components/Button";
 import { ListBadge, Plate, PlateType, StateView, Validity, fmtTime, useApi } from "../components/ui";
 import { useI18n } from "../i18n";
 import { PlateDraft, PlateSearch, emptyDraft } from "../plate/PlateSearch";
@@ -89,12 +91,15 @@ export function History() {
             <label>{t("hist.model")}<select className="inset" value={draft.model_version} onChange={set("model_version")}><option value="">{t("hist.any")}</option><option>v1</option><option>v2</option></select></label>
           </div>
         </details>
-        <div className="row form-actions"><button type="submit" className="primary">{t("hist.search")}</button><button type="button" onClick={clear}>{t("hist.clear")}</button></div>
+        <div className="row form-actions"><Btn type="submit" variant="primary" icon={Search} state={page.loading ? "busy" : "idle"}>{t("hist.search")}</Btn><Btn icon={Eraser} onClick={clear}>{t("hist.clear")}</Btn></div>
       </form>
       <section className="card raised" aria-label={t("hist.results")}>
         <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
           <span className="muted" aria-live="polite">{page.data ? t("hist.count", { n: total }) : ""}</span>
-          <a className="btn" href={csv}>{t("hist.export")}</a>
+          <span className="row" style={{ gap: 8 }}>
+            <Btn icon={RefreshCw} iconOnly variant="ghost" spin={page.loading} label={t("common.refresh")} onClick={page.reload} />
+            <a className="btn icon-link" href={csv}><Download size={18} aria-hidden="true" />{t("hist.export")}</a>
+          </span>
         </div>
         <StateView hasData={!!page.data} loading={page.loading} error={page.error} empty={!page.data?.items.length} emptyText={t("hist.noMatch")} onRetry={page.reload}>
           <div className="table-wrap"><table><thead><tr><th>{t("col.time")}</th><th>{t("col.camera")}</th><th>{t("col.plate")}</th><th>{t("col.type")}</th><th>{t("col.list")}</th><th>{t("col.model")}</th><th>{t("col.confidence")}</th><th>{t("col.status")}</th></tr></thead><tbody>
@@ -104,9 +109,9 @@ export function History() {
             ))}
           </tbody></table></div>
           <nav className="row" aria-label={t("hist.pages")} style={{ marginTop: 12 }}>
-            <button type="button" disabled={offset === 0} onClick={() => goto(Math.max(0, offset - LIMIT))}>{t("hist.prev")}</button>
+            <Btn icon={ChevronLeft} flipRtl disabled={offset === 0} onClick={() => goto(Math.max(0, offset - LIMIT))}>{t("hist.prev")}</Btn>
             <span className="muted">{t("hist.range", { from: offset + 1, to: Math.min(offset + LIMIT, total), total })}</span>
-            <button type="button" disabled={offset + LIMIT >= total} onClick={() => goto(offset + LIMIT)}>{t("hist.next")}</button>
+            <Btn icon={ChevronRight} flipRtl className="icon-end" disabled={offset + LIMIT >= total} onClick={() => goto(offset + LIMIT)}>{t("hist.next")}</Btn>
           </nav>
         </StateView>
       </section>

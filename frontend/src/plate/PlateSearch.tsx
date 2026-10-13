@@ -1,5 +1,7 @@
 // Plate part of the search form: plate type, free zone, the editable plate and the match mode, plus help.
+import { Asterisk, CircleHelp, Equal } from "lucide-react";
 import { useId, useState } from "react";
+import { Btn } from "../components/Button";
 import { Key, useI18n } from "../i18n";
 import { ZONES } from "./charset";
 import { FORMATS, Match, PlateFormat, SlotValues, emptySlots, formatById } from "./formats";
@@ -35,8 +37,8 @@ export function PlateSearch({ draft, onChange, error, onError }: {
         )}
         <div role="radiogroup" aria-label={t("plate.mode")} className="row seg">
           {(["partial", "exact"] as Match[]).map((m) => (
-            <button key={m} type="button" role="radio" aria-checked={draft.match === m} className={draft.match === m ? "inset" : ""}
-              onClick={() => { onError(null); onChange({ ...draft, match: m }); }}>{t(m === "exact" ? "plate.exact" : "plate.partial")}</button>
+            <Btn key={m} role="radio" icon={m === "exact" ? Equal : Asterisk} aria-checked={draft.match === m} className={draft.match === m ? "inset" : ""}
+              onClick={() => { onError(null); onChange({ ...draft, match: m }); }}>{t(m === "exact" ? "plate.exact" : "plate.partial")}</Btn>
           ))}
         </div>
       </div>
@@ -45,7 +47,7 @@ export function PlateSearch({ draft, onChange, error, onError }: {
       {error ? <p className="plate-msg" role="alert">{error}</p> : <p className="plate-msg" aria-hidden="true" />}
       {!f.verified && <p className="muted plate-note">{t("plate.approx")}</p>}
       <button type="button" className="link-btn" aria-expanded={help} aria-controls={`${id}-help`} onClick={() => setHelp(!help)}>
-        {t("plate.help.title")}</button>
+        <CircleHelp size={16} aria-hidden="true" />{t("plate.help.title")}</button>
       {help && (
         <ul id={`${id}-help`} className="plate-help muted">
           {(["plate.help.1", "plate.help.2", "plate.help.3", "plate.help.4"] as Key[]).map((k) => <li key={k}>{t(k)}</li>)}

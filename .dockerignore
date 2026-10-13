@@ -33,6 +33,7 @@
 !frontend/tsconfig.json
 !frontend/vite.config.ts
 !frontend/src/**
+!frontend/public/**
 !frontend/nginx.conf
 !frontend/Dockerfile
 !frontend/e2e/run.mjs

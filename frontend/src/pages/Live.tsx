@@ -1,41 +1,64 @@
+import { Cctv, LayoutGrid, ScanLine, Square, Video } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Camera, EventSummary, LiveState, connectLive } from "../api";
+import { Btn } from "../components/Button";
 import { LiveVideo } from "../components/LiveVideo";
 import { ListBadge, Plate, PlateType, StateView, Validity, fmtTime, useApi } from "../components/ui";
 import { useI18n } from "../i18n";
 
 const RAW_TYPES = ["rtsp", "rtmp", "http", "hls"];
 
-// One live view at a time: the board can encode one detection stream (memory), so the page shows the selected
-// camera with detections (OSD) or its raw stream.
-function LiveView({ cams }: { cams: Camera[] }) {
+type View = "osd" | "raw";
+
+// Grid of all cameras at once. Raw streams can play side by side (the gateway only remuxes them); the detection
+// overlay is one encoder on this board (memory), so at most one tile shows detections and the others play raw.
+// Cameras without a raw stream (USB, CSI, files) show a placeholder until their detections are selected.
+function LiveGrid({ cams }: { cams: Camera[] }) {
   const { t } = useI18n();
-  const [camId, setCamId] = useState<string>(cams[0]?.id ?? "");
-  const [view, setView] = useState<"osd" | "raw">("osd");
-  const cam = cams.find((c) => c.id === camId) ?? cams[0];
-  if (!cam) return null;
-  const canRaw = RAW_TYPES.includes(cam.type);
-  const shown = view === "raw" && canRaw ? "raw" : "osd";
-  const path = shown === "osd" ? `${cam.id}-osd` : cam.id;
+  const [osdCam, setOsdCam] = useState<string | null>(() => cams[0]?.id ?? null);
+  const [layout, setLayout] = useState<"grid" | "single">("grid");
+  const [focus, setFocus] = useState<string>(cams[0]?.id ?? "");
+  const shown = layout === "single" ? cams.filter((c) => c.id === focus).slice(0, 1) : cams;
+  const list = shown.length ? shown : cams.slice(0, 1);
   return (
     <section className="card raised" aria-label={t("live.title")}>
-      <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
-        <label className="row" style={{ display: "flex", alignItems: "center", gap: 8 }}>{t("live.camera")}
-          <select className="inset" value={cam.id} onChange={(e) => setCamId(e.target.value)}>
-            {cams.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </label>
-        <div className="row" role="group" aria-label={t("live.view")} style={{ gap: 6 }}>
-          <button type="button" aria-pressed={shown === "osd"} onClick={() => setView("osd")}>{t("live.osd")}</button>
-          <button type="button" aria-pressed={shown === "raw"} disabled={!canRaw}
-            title={canRaw ? "" : t("live.rawOnlyNet")} onClick={() => setView("raw")}>{t("live.raw")}</button>
+      <div className="card-head">
+        <div className="row" role="group" aria-label={t("live.layout")} style={{ gap: 6 }}>
+          <Btn icon={LayoutGrid} aria-pressed={layout === "grid"} onClick={() => setLayout("grid")}>{t("live.grid")}</Btn>
+          <Btn icon={Square} aria-pressed={layout === "single"} onClick={() => setLayout("single")}>{t("live.single")}</Btn>
         </div>
+        {layout === "single" && (
+          <label className="row" style={{ display: "flex", alignItems: "center", gap: 8 }}>{t("live.camera")}
+            <select className="inset" value={focus} onChange={(e) => setFocus(e.target.value)}>
+              {cams.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+        )}
       </div>
-      <LiveVideo key={path} path={path} label={`${cam.name} ${shown === "osd" ? t("video.withOsd") : t("video.raw")}`} />
-      <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
-        {shown === "osd" ? t("live.osdNote") : t("live.rawNote")}
-      </p>
+      <div className={`video-grid${list.length === 1 ? " one" : ""}`}>
+        {list.map((cam) => {
+          const canRaw = RAW_TYPES.includes(cam.type);
+          const view: View | null = osdCam === cam.id ? "osd" : canRaw ? "raw" : null;
+          const path = view === "osd" ? `${cam.id}-osd` : cam.id;
+          return (
+            <figure key={cam.id} className="video-tile">
+              <figcaption className="row video-cap">
+                <span className="row" style={{ gap: 6 }}><Cctv size={16} aria-hidden="true" /><strong>{cam.name}</strong>
+                  <span className="muted">{view === "osd" ? t("video.withOsd") : view === "raw" ? t("video.raw") : ""}</span></span>
+                <span className="row" role="group" aria-label={t("live.viewOf", { camera: cam.name })} style={{ gap: 6 }}>
+                  <Btn icon={ScanLine} className="btn-sm" aria-pressed={view === "osd"} onClick={() => setOsdCam(cam.id)}>{t("live.osd")}</Btn>
+                  <Btn icon={Video} className="btn-sm" aria-pressed={view === "raw"} disabled={!canRaw}
+                    tip={canRaw ? undefined : t("live.rawOnlyNet")} onClick={() => osdCam === cam.id && setOsdCam(null)}>{t("live.raw")}</Btn>
+                </span>
+              </figcaption>
+              {view ? <LiveVideo key={path} path={path} label={`${cam.name} ${view === "osd" ? t("video.withOsd") : t("video.raw")}`} />
+                : <div className="video-box inset"><div className="video-state">{t("live.rawOnlyNet")}</div></div>}
+            </figure>
+          );
+        })}
+      </div>
+      <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>{t("live.osdNote")} {t("live.rawNote")}</p>
     </section>
   );
 }
@@ -46,32 +69,23 @@ export function Live({ connect = connectLive }: { connect?: typeof connectLive }
   const [state, setState] = useState<LiveState>("connecting");
   const cams = useApi<Camera[]>("/cameras", 15000);
   const videoCams = (cams.data ?? []).filter((c) => c.enabled && !["image", "image_folder", "image_job"].includes(c.type));
-  const [alert, setAlert] = useState<EventSummary | null>(null);
   const [arrived, setArrived] = useState<Set<string>>(new Set());   // rows that arrived live get a brief highlight
   useEffect(() => connect((e) => {
     setEvents((xs) => [e, ...xs.filter((x) => x.event_id !== e.event_id)].slice(0, 50));
     setArrived((a) => new Set(a).add(e.event_id));
-  }, setState, setAlert), [connect]);
+  }, setState), [connect]);
   return (
     <>
       <h1>{t("live.title")}</h1>
       <p className="sub">{t("live.sub")}</p>
       <StateView hasData={!!cams.data} loading={cams.loading} error={null} empty={!videoCams.length}
         emptyText={t("live.noCams")}>
-        <LiveView cams={videoCams} />
+        <LiveGrid cams={videoCams} />
       </StateView>
       {state !== "open" && (
         <div className="banner inset" role="status">
           <span className="dot pulse" aria-hidden="true" style={{ background: state === "connecting" ? "var(--warn)" : "var(--bad)" }} />
           <span>{state === "connecting" ? t("live.connecting") : <><strong className="bad">{t("live.disconnected")}</strong> {t("live.reconnecting")}</>}</span>
-        </div>
-      )}
-      {alert && (
-        <div className="banner raised alert-pulse" role="alert">
-          <span className="dot" aria-hidden="true" style={{ background: "var(--bad)" }} />
-          <span><strong className="bad">{t("live.alert")}</strong> {t("live.alertOn", { camera: alert.camera_id, time: fmtTime(alert.timestamp) })} </span>
-          <Plate e={alert} /> <Link to={`/events/${alert.event_id}`}>{t("live.details")}</Link>
-          <button type="button" onClick={() => setAlert(null)} style={{ marginInlineStart: "auto" }}>{t("live.dismiss")}</button>
         </div>
       )}
       <section className="card raised" aria-live="polite" aria-label={t("live.feed")}>

@@ -10,8 +10,12 @@ const fa = {
   "app.brand": "پلاک‌خوان",
   "nav.overview": "نمای کلی", "nav.live": "زنده", "nav.history": "جستجوی پلاک", "nav.lists": "فهرست‌ها",
   "nav.health": "سلامت سامانه", "nav.settings": "تنظیمات", "nav.signout": "خروج", "nav.main": "منوی اصلی",
+  "nav.collapse": "جمع کردن منو", "nav.expand": "باز کردن منو",
+  "notify.region": "اعلان‌ها", "notify.plate": "پلاک جدید", "notify.on": "اعلان‌ها روشن", "notify.off": "اعلان‌ها خاموش",
+  "notify.mute": "خاموش کردن اعلان پلاک‌ها", "notify.unmute": "روشن کردن اعلان پلاک‌ها",
+  "notify.hint": "هشدار فهرست ممنوع همیشه نمایش داده می‌شود",
   "lang.label": "زبان", "lang.fa": "فارسی", "lang.en": "English",
-  "common.loading": "در حال بارگذاری…", "common.retry": "تلاش دوباره", "common.backendDown": "اتصال به سرور برقرار نیست.",
+  "common.loading": "در حال بارگذاری…", "common.retry": "تلاش دوباره", "common.refresh": "تازه‌سازی", "common.backendDown": "اتصال به سرور برقرار نیست.",
   "common.error": "خطای {status}: {message}", "common.empty": "هنوز موردی برای نمایش نیست.", "common.notFound": "صفحه پیدا نشد.",
   "common.stale": "قدیمی:", "common.staleText": "{what} {seconds} ثانیه پیش به‌روز شده است.", "common.noRead": "پلاکی خوانده نشد",
   "valid.ok": "معتبر", "valid.na": "نامشخص", "valid.naTitle": "قاعده قالب تأییدشده‌ای وجود ندارد", "valid.bad": "نامعتبر",
@@ -30,9 +34,9 @@ const fa = {
   "live.title": "زنده", "live.sub": "تصویر زنده دوربین‌ها و پلاک‌های تازه‌خوانده‌شده.", "live.connecting": "در حال اتصال به به‌روزرسانی زنده…",
   "live.disconnected": "قطع شد.", "live.reconnecting": "اتصال خودکار دوباره برقرار می‌شود.", "live.waiting": "در انتظار پلاک بعدی…",
   "live.noData": "داده زنده‌ای نیست.", "live.feed": "پلاک‌های زنده", "live.noCams": "منبع ویدیویی فعالی نیست. در تنظیمات دوربین اضافه یا فعال کنید.",
-  "live.camera": "دوربین", "live.view": "نما", "live.osd": "تشخیص‌ها", "live.raw": "تصویر خام",
+  "live.camera": "دوربین", "live.layout": "چیدمان", "live.grid": "همه دوربین‌ها", "live.single": "یک دوربین", "live.viewOf": "نمای {camera}", "live.view": "نما", "live.osd": "تشخیص‌ها", "live.raw": "تصویر خام",
   "live.rawOnlyNet": "تصویر خام فقط برای دوربین‌های شبکه‌ای در دسترس است.",
-  "live.osdNote": "تشخیص‌ها روی فریم‌هایی که مدل پردازش کرده رسم می‌شوند (حدود ۳٫۵ فریم در ثانیه در کل این دستگاه). هم‌زمان یک نمای تشخیص.",
+  "live.osdNote": "تشخیص‌ها روی فریم‌هایی که مدل پردازش کرده رسم می‌شوند (حدود ۳٫۵ فریم در ثانیه در کل این دستگاه)؛ هم‌زمان فقط یک دوربین با تشخیص‌ها نمایش داده می‌شود و بقیه تصویر خام دارند.",
   "live.rawNote": "جریان اصلی دوربین (دوربین‌های H.265 فقط در مرورگرهای دارای پشتیبانی HEVC پخش می‌شوند).",
   "live.alert": "پلاک فهرست ممنوع", "live.alertOn": "روی {camera} در {time}:", "live.details": "جزئیات", "live.dismiss": "بستن",
   "video.connecting": "در حال اتصال…", "video.unavailable": "جریان هنوز در دسترس نیست؛ دوباره تلاش می‌شود.",
@@ -65,7 +69,7 @@ const fa = {
   "ev.type": "نوع", "ev.status": "وضعیت", "ev.conf": "اطمینان", "ev.voted": "{conf} · {n} فریم رأی‌گیری‌شده", "ev.track": " · رد {id}",
   "ev.model": "مدل", "ev.listAt": "فهرست در زمان رویداد", "ev.putOnList": "قرار دادن این پلاک در فهرست", "ev.nowOn": "پلاک اکنون در «{list}» است.",
   "ev.chars": "نویسه‌ها", "ev.class": "کلاس", "ev.margin": "فاصله", "ev.evidence": "تصویر شاهد", "ev.noCrop": "تصویری ذخیره نشده است.",
-  "ev.cropAlt": "تصویر پلاک {plate}", "ev.expiry": "انقضا {v}", "ev.failed": "ناموفق: {m}",
+  "ev.cropAlt": "تصویر پلاک {plate}", "ev.copy": "کپی پلاک", "ev.back": "بازگشت", "ev.expiry": "انقضا {v}", "ev.failed": "ناموفق: {m}",
   "health.title": "سلامت سامانه", "health.sub": "هر ۳ ثانیه به‌روز می‌شود.", "health.inference": "سرویس تشخیص", "health.up": "فعال",
   "health.down": "قطع", "health.events": "رویدادهای ذخیره‌شده", "health.cams": "حداکثر دوربین (اندازه‌گیری‌شده، ایمن از نظر حافظه)",
   "health.camsAt": "{n} دوربین با ≥ {fps} فریم بر ثانیه برای هر دوربین", "health.retention": "نگهداری", "health.days": "{n} روز",
@@ -96,11 +100,15 @@ const fa = {
 export type Key = keyof typeof fa;
 
 const en: Record<Key, string> = {
-  "app.brand": "LPR · Edge",
+  "app.brand": "Plate recognition",
   "nav.overview": "Overview", "nav.live": "Live", "nav.history": "Plate search", "nav.lists": "Lists", "nav.health": "System health",
   "nav.settings": "Settings", "nav.signout": "Sign out", "nav.main": "Main",
+  "nav.collapse": "Collapse menu", "nav.expand": "Expand menu",
+  "notify.region": "Notifications", "notify.plate": "New plate", "notify.on": "Notifications on", "notify.off": "Notifications off",
+  "notify.mute": "Mute plate notifications", "notify.unmute": "Unmute plate notifications",
+  "notify.hint": "Blocklist alerts are always shown",
   "lang.label": "Language", "lang.fa": "فارسی", "lang.en": "English",
-  "common.loading": "Loading…", "common.retry": "Retry", "common.backendDown": "Cannot reach the backend.",
+  "common.loading": "Loading…", "common.retry": "Retry", "common.refresh": "Refresh", "common.backendDown": "Cannot reach the backend.",
   "common.error": "Error {status}: {message}", "common.empty": "Nothing to show yet.", "common.notFound": "Page not found.",
   "common.stale": "Stale:", "common.staleText": "{what} last updated {seconds} s ago.", "common.noRead": "no plate read",
   "valid.ok": "valid", "valid.na": "not applicable", "valid.naTitle": "No validated format rule", "valid.bad": "invalid",
@@ -119,9 +127,9 @@ const en: Record<Key, string> = {
   "live.title": "Live", "live.sub": "Live camera views and plates as they are recognized.", "live.connecting": "Connecting to live updates…",
   "live.disconnected": "Disconnected.", "live.reconnecting": "Reconnecting automatically.", "live.waiting": "Waiting for the next plate…",
   "live.noData": "No live data.", "live.feed": "Live plates", "live.noCams": "No enabled video sources. Add or enable a camera in Settings.",
-  "live.camera": "Camera", "live.view": "View", "live.osd": "Detections", "live.raw": "Raw",
+  "live.camera": "Camera", "live.layout": "Layout", "live.grid": "All cameras", "live.single": "One camera", "live.viewOf": "View of {camera}", "live.view": "View", "live.osd": "Detections", "live.raw": "Raw",
   "live.rawOnlyNet": "Raw view is available for network cameras.",
-  "live.osdNote": "Detections are drawn on the frames the model processed (about 3.5 per second in total on this device). One detection view at a time.",
+  "live.osdNote": "Detections are drawn on the frames the model processed (about 3.5 per second in total on this device); one camera at a time shows detections, the others play raw.",
   "live.rawNote": "Original camera stream (H.265 cameras play only in browsers with HEVC support).",
   "live.alert": "Blocklisted plate", "live.alertOn": "on {camera} at {time}:", "live.details": "Details", "live.dismiss": "Dismiss",
   "video.connecting": "Connecting…", "video.unavailable": "Stream not available yet — retrying.",
@@ -154,7 +162,7 @@ const en: Record<Key, string> = {
   "ev.type": "Type", "ev.status": "Status", "ev.conf": "Confidence", "ev.voted": "{conf} · {n} frame(s) voted", "ev.track": " · track {id}",
   "ev.model": "Model", "ev.listAt": "List at event time", "ev.putOnList": "Put this plate on a list", "ev.nowOn": "Plate is now on the {list}.",
   "ev.chars": "Characters", "ev.class": "Class", "ev.margin": "Margin", "ev.evidence": "Evidence", "ev.noCrop": "No crop stored.",
-  "ev.cropAlt": "Plate crop {plate}", "ev.expiry": "expiry {v}", "ev.failed": "Failed: {m}",
+  "ev.cropAlt": "Plate crop {plate}", "ev.copy": "Copy plate", "ev.back": "Back", "ev.expiry": "expiry {v}", "ev.failed": "Failed: {m}",
   "health.title": "System health", "health.sub": "Refreshes every 3 s.", "health.inference": "Inference", "health.up": "up",
   "health.down": "down", "health.events": "Events stored", "health.cams": "Max cameras (measured, memory-safe)",
   "health.camsAt": "{n} at ≥ {fps} fps per camera", "health.retention": "Retention", "health.days": "{n} d",
@@ -192,7 +200,7 @@ function initial(): Lang {
 export function applyDocumentLang(lang: Lang) {
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === "fa" ? "rtl" : "ltr";
-  document.title = lang === "fa" ? "داشبورد پلاک‌خوان" : "LPR Dashboard";
+  document.title = lang === "fa" ? "EdgeTech · پلاک‌خوان" : "EdgeTech · Plate recognition";
 }
 
 type Ctx = { lang: Lang; setLang: (l: Lang) => void; t: (k: Key, vars?: Record<string, string | number>) => string;

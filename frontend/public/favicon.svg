@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <!-- EdgeTech LPR mark for small sizes: plate in a scan viewfinder on a dark tile (legible on any tab colour) -->
+  <rect width="48" height="48" rx="11" fill="#0d1726"/>
+  <g fill="none" stroke="#2f86ff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 15V10a3 3 0 0 1 3-3h5M33 7h5a3 3 0 0 1 3 3v5M41 33v5a3 3 0 0 1-3 3h-5M15 41h-5a3 3 0 0 1-3-3v-5"/>
+  </g>
+  <rect x="11" y="16.5" width="26" height="15" rx="2.6" fill="#f7f8fa"/>
+  <path d="M13.6 16.5h3.4v15h-3.4a2.6 2.6 0 0 1-2.6-2.6v-9.8a2.6 2.6 0 0 1 2.6-2.6z" fill="#1a62d6"/>
+  <g stroke="#0d1726" stroke-width="2.4" stroke-linecap="round"><path d="M21.5 20.5v7M26 20.5v7M30.5 20.5v7"/></g>
+  <path d="M9 24h30" stroke="#2f86ff" stroke-width="1.6" stroke-linecap="round" opacity=".9"/>
+</svg>
