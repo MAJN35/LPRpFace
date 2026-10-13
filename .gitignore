@@ -1,0 +1,26 @@
+# Model weights, exported ONNX and TensorRT engines (identity = SHA256SUMS, committed)
+models/**/*.pt
+models/**/*.onnx
+models/**/*.engine
+*.engine
+engine_cache/
+
+# Private data: real vehicles/faces, crops, recordings
+tests/data/private/
+crops/
+recordings/
+media/
+
+# Secrets
+.env
+*.env
+!.env.example
+
+# Python / Node
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+node_modules/
+dist/
