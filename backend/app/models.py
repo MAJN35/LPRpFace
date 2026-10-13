@@ -4,7 +4,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Optional
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, func
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Index, Integer, LargeBinary, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .db import Base
@@ -73,10 +73,12 @@ LIST_STATUSES = ("whitelist", "blocklist", "unknown")
 
 
 class Person(Base):
-    """A person record (name, notes) linked to plates. Never identified by face (AGENTS.md privacy)."""
+    """A person record (name, notes) linked to plates and faces (face recognition, AGENTS.md privacy 2026-10-13).
+    ``auto_named``: created by the face matcher for an unknown face; the name is empty until an operator sets one."""
     __tablename__ = "persons"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     full_name: Mapped[str] = mapped_column(String(128))
+    auto_named: Mapped[bool] = mapped_column(Boolean, default=False)
     notes: Mapped[str] = mapped_column(Text, default="")
     list_status: Mapped[str] = mapped_column(String(16), default="unknown", index=True)
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -98,3 +100,33 @@ class Plate(Base):
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(),
                                                     onupdate=func.now())
+
+
+class FaceEvent(Base):
+    """One face track (or face in an image job): snapshot, ArcFace embedding, matched person (biometric data)."""
+    __tablename__ = "face_events"
+    event_id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    event_type: Mapped[str] = mapped_column(String(32))
+    camera_id: Mapped[str] = mapped_column(String(64), index=True)
+    source_type: Mapped[str] = mapped_column(String(16))
+    source_file: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    ts: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), index=True)
+    track_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    face_bbox: Mapped[list] = mapped_column(JSON)
+    frame_size: Mapped[list] = mapped_column(JSON)
+    det_score: Mapped[float] = mapped_column(Float)
+    frames_seen: Mapped[int] = mapped_column(Integer, default=1)
+    snapshot_path: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
+    embed_model: Mapped[str] = mapped_column(String(32), default="")
+    embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)   # float32 x 512, L2-normalized
+    embed_det_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    sharpness: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    anchor: Mapped[bool] = mapped_column(Boolean, default=False)      # used as a reference for its person
+    person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True,
+                                                     index=True)
+    similarity: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    match: Mapped[str] = mapped_column(String(16), default="none")   # matched | new_person | manual | none
+    list_status: Mapped[str] = mapped_column(String(16), default="unknown", index=True)  # at ingest time
+    created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_face_events_person_ts", "person_id", "ts"),)

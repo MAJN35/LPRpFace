@@ -16,8 +16,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from lpr_reader.normalize import format_standard, normalize_text, parse_standard, plate_key, search_keys
 
 from ..db import get_db
-from ..models import AuditLog, Event, Person, Plate, User
+from ..models import AuditLog, Event, FaceEvent, Person, Plate, User
 from ..security import any_role, operator
+from .faces import gallery
 
 router = APIRouter(prefix="/api/v1", tags=["watchlists"])
 ListStatus = Literal["whitelist", "blocklist", "unknown"]
@@ -62,6 +63,10 @@ class PersonOut(BaseModel):
     notes: str
     list_status: str
     plates: int = 0
+    auto_named: bool = False                 # created by the face matcher, not named yet
+    faces: int = 0
+    last_seen: Optional[dt.datetime] = None  # latest face of this person
+    cover_face: Optional[str] = None         # newest face with a snapshot (thumbnail)
 
 
 class PlateOut(BaseModel):
@@ -126,6 +131,7 @@ async def _person_or_404(db, pid: int) -> Person:
 # --- persons ---------------------------------------------------------------------------------------------------------
 @router.get("/persons")
 async def list_persons(list_status: Optional[ListStatus] = None, q: Optional[str] = Query(None, max_length=64),
+                       named: Optional[bool] = None, sort: Literal["name", "recent"] = "name",
                        limit: int = Query(50, ge=1, le=500), offset: int = Query(0, ge=0),
                        _: User = Depends(any_role), db: AsyncSession = Depends(get_db)):
     stmt, count = select(Person), select(func.count()).select_from(Person)
@@ -133,15 +139,37 @@ async def list_persons(list_status: Optional[ListStatus] = None, q: Optional[str
     if list_status:
         conds.append(Person.list_status == list_status)
     if q:
-        conds.append(Person.full_name.ilike(f"%{q.strip()}%"))
+        t = normalize_text(q).strip()
+        conds.append(or_(Person.full_name.ilike(f"%{t}%"), Person.id == int(t.lstrip("#")))
+                     if t.lstrip("#").isdigit() else Person.full_name.ilike(f"%{t}%"))
+    if named is not None:
+        conds.append(Person.auto_named.is_(not named))
     for c in conds:
         stmt, count = stmt.where(c), count.where(c)
     total = (await db.execute(count)).scalar_one()
-    rows = (await db.execute(stmt.order_by(Person.full_name).limit(limit).offset(offset))).scalars().all()
-    n = dict((await db.execute(select(Plate.person_id, func.count()).where(Plate.person_id.in_([r.id for r in rows]))
-                                .group_by(Plate.person_id))).all()) if rows else {}
-    return {"items": [PersonOut(id=r.id, full_name=r.full_name, notes=r.notes, list_status=r.list_status,
-                                plates=n.get(r.id, 0)) for r in rows], "total": total, "limit": limit, "offset": offset}
+    order = (Person.auto_named, Person.full_name, Person.id) if sort == "name" else (Person.id.desc(),)
+    rows = (await db.execute(stmt.order_by(*order).limit(limit).offset(offset))).scalars().all()
+    return {"items": await _persons_out(db, rows), "total": total, "limit": limit, "offset": offset}
+
+
+async def _persons_out(db: AsyncSession, rows) -> List[PersonOut]:
+    ids = [r.id for r in rows]
+    if not ids:
+        return []
+    n = dict((await db.execute(select(Plate.person_id, func.count()).where(Plate.person_id.in_(ids))
+                                .group_by(Plate.person_id))).all())
+    fs = {pid: (cnt, last) for pid, cnt, last in (await db.execute(
+        select(FaceEvent.person_id, func.count(), func.max(FaceEvent.ts)).where(FaceEvent.person_id.in_(ids))
+        .group_by(FaceEvent.person_id))).all()}
+    cover = {}
+    for pid in ids:
+        if fs.get(pid):
+            cover[pid] = (await db.execute(select(FaceEvent.event_id).where(
+                FaceEvent.person_id == pid, FaceEvent.snapshot_path.is_not(None))
+                .order_by(FaceEvent.anchor.desc(), FaceEvent.ts.desc()).limit(1))).scalar()
+    return [PersonOut(id=r.id, full_name=r.full_name, notes=r.notes, list_status=r.list_status, plates=n.get(r.id, 0),
+                      auto_named=r.auto_named, faces=fs.get(r.id, (0, None))[0], last_seen=fs.get(r.id, (0, None))[1],
+                      cover_face=cover.get(r.id)) for r in rows]
 
 
 @router.post("/persons", response_model=PersonOut, status_code=201)
@@ -160,8 +188,7 @@ async def get_person(pid: int, user: User = Depends(any_role), db: AsyncSession 
     plates = (await db.execute(select(Plate).where(Plate.person_id == pid).order_by(Plate.plate_key))).scalars().all()
     _audit(db, user, "view_person", f"person:{pid}")
     await db.commit()
-    return {"person": PersonOut(id=p.id, full_name=p.full_name, notes=p.notes, list_status=p.list_status,
-                                plates=len(plates)),
+    return {"person": (await _persons_out(db, [p]))[0],
             "plates": [await _plate_out(db, x) for x in plates]}
 
 
@@ -171,12 +198,13 @@ async def update_person(pid: int, body: PersonPatch, user: User = Depends(operat
     if body.list_status and body.list_status != p.list_status:
         _audit(db, user, "list_change", f"person:{pid} {p.list_status}->{body.list_status}")
         p.list_status = body.list_status
-    if body.full_name is not None:
-        p.full_name = body.full_name.strip()
+    if body.full_name is not None and body.full_name.strip() != p.full_name:
+        _audit(db, user, "person_rename", f"person:{pid}")
+        p.full_name, p.auto_named = body.full_name.strip(), False
     if body.notes is not None:
         p.notes = body.notes
     await db.commit()
-    return PersonOut(id=p.id, full_name=p.full_name, notes=p.notes, list_status=p.list_status)
+    return (await _persons_out(db, [p]))[0]
 
 
 @router.delete("/persons/{pid}")
@@ -184,7 +212,10 @@ async def delete_person(pid: int, user: User = Depends(operator), db: AsyncSessi
     p = await _person_or_404(db, pid)
     for pl in (await db.execute(select(Plate).where(Plate.person_id == pid))).scalars():
         pl.person_id = None
+    for f in (await db.execute(select(FaceEvent).where(FaceEvent.person_id == pid))).scalars():
+        f.person_id, f.anchor = None, False          # the faces stay (unassigned), no longer references
     await db.delete(p)
+    gallery.invalidate()
     _audit(db, user, "list_change", f"person:{pid} deleted")
     await db.commit()
     return {"id": pid, "deleted": True}

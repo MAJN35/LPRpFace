@@ -14,7 +14,7 @@ from sqlalchemy import delete, func, select
 from .config import settings
 from .db import SessionLocal
 from .models import Event, User
-from .routes import api, lists, system
+from .routes import api, faces, lists, system
 from .security import hash_password
 
 log = logging.getLogger("lpr.backend")
@@ -44,8 +44,9 @@ async def retention_once(now: dt.datetime) -> int:
                     with contextlib.suppress(FileNotFoundError):
                         p.unlink()
         await db.execute(delete(Event).where(Event.ts < cutoff))
+        n_faces = await faces.purge_faces(db, cutoff)       # face snapshots and embeddings (biometric data)
         await db.commit()
-    return len(old)
+    return len(old) + n_faces
 
 
 async def retention_loop() -> None:
@@ -77,3 +78,4 @@ if settings.cors_origins:
 app.include_router(api.router)
 app.include_router(system.router)
 app.include_router(lists.router)
+app.include_router(faces.router)
