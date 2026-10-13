@@ -204,8 +204,8 @@ Decisions needed: none (all decided by the user on 2026-10-13)
   collapsible sidebar with tooltips, shared animated button with real busy, success and error states.
 - Video events: one per track with >= 3 read frames, plausible plates only (`LPR_EMIT_INVALID=1` restores invalid
   reads); track timeout 3 s.
-- Live: standard HLS and always-ready raw streams (the browser was giving up on slow-starting LL-HLS); grid of all
-  cameras; detections on one camera at a time.
+- Live: fixed the detection stream stalling after a restart (stale timestamps), standard HLS, keyframe every 2
+  frames, raw streams always pulled; grid of all cameras; detections on one camera at a time.
 - Toast notification per detection, mutable; blocklist alerts always shown.
 - Tests: frontend 42/42, DeepStream unit 18/18, backend 26/26, e2e 28/28 on a demo-only stack.
 

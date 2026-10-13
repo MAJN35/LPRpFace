@@ -9,11 +9,12 @@ rtspTransports: [tcp]
 hls: yes
 hlsAddress: :8888
 # Standard HLS (fMP4), not low-latency: the detection stream runs at the inference rate (~3.5 fps), whose irregular
-# LL-HLS parts made browsers stall; a few seconds of delay is the price. Muxers stay ready (no start-up wait).
+# LL-HLS parts made browsers stall; a few seconds of delay is the price. Muxers start on the first request
+# (hlsAlwaysRemux would answer the on-demand detection stream with 404).
 hlsVariant: fmp4
 hlsSegmentCount: 4
 hlsSegmentDuration: 1s
-hlsAlwaysRemux: yes
+hlsAlwaysRemux: no
 hlsAllowOrigin: ""
 rtmp: no
 webrtc: no

@@ -38,6 +38,7 @@ class MediaGateway:
     def __init__(self, api_url: str):
         self.api = api_url.rstrip("/")
         self._paths: Dict[str, str] = {}  # id -> camera URI (with credentials; never logged)
+        self._synced: Dict[str, str] = {}  # id -> URI the gateway has (worker thread only)
         self._lock = threading.Lock()
         threading.Thread(target=self._sync_loop, name="media-gateway", daemon=True).start()
 
@@ -60,6 +61,7 @@ class MediaGateway:
     def unregister_raw(self, sid: str) -> None:
         with self._lock:
             self._paths.pop(sid, None)
+        self._synced.pop(sid, None)
         self._call("DELETE", f"/v3/config/paths/delete/{sid}")
 
     def _sync_loop(self) -> None:
@@ -69,10 +71,14 @@ class MediaGateway:
                 paths = dict(self._paths)
             for sid, uri in paths.items():
                 conf = {"source": uri, "sourceOnDemand": False, "rtspTransport": "tcp"}
+                if self._synced.get(sid) == uri and self._call("GET", f"/v3/config/paths/get/{sid}") == 200:
+                    continue                  # registered and still there (a GET logs nothing on the gateway)
                 code = self._call("POST", f"/v3/config/paths/add/{sid}", conf)
-                if code == 400:  # exists: make sure it points at the current URI
+                if code == 400:  # exists (e.g. after our restart): make sure it points at the current URI
                     code = self._call("PATCH", f"/v3/config/paths/patch/{sid}", conf)
-                if code not in (200, 400):
+                if code == 200:
+                    self._synced[sid] = uri
+                else:
                     log.debug("raw path %s: gateway answered %s", sid, code)
             time.sleep(10)
 
@@ -119,8 +125,12 @@ class Publisher:
         src = self.src
         if src is None or not self.ok:
             return
-        buf = sample.get_buffer()
-        if src.emit("push-buffer", buf.copy()) == Gst.FlowReturn.OK:
+        # Drop the inference pipeline's timestamps (its running time, minutes or hours in): with them, a publisher
+        # started later waited that long before sending its first frame. appsrc do-timestamp then stamps each frame
+        # with the publisher's own running time.
+        buf = sample.get_buffer().copy()
+        buf.pts = buf.dts = buf.duration = Gst.CLOCK_TIME_NONE
+        if src.emit("push-buffer", buf) == Gst.FlowReturn.OK:
             self.pushed += 1
 
     def close(self) -> None:
@@ -163,7 +173,9 @@ class LiveOsd:
         self.conv = _make("nvvideoconvert", "live-conv")
         self.caps = _make("capsfilter", "live-caps", caps=Gst.Caps.from_string("video/x-raw(memory:NVMM),format=I420"))
         q = _make("queue", "live-q", leaky=2, max_size_buffers=2, max_size_bytes=0, max_size_time=0)
-        enc = _make("nvv4l2h264enc", "live-enc", bitrate=bitrate, iframeinterval=10, idrinterval=10, insert_sps_pps=True)
+        # A keyframe every 2 frames: the stream runs at the inference rate (~2-3.5 fps), and HLS segments can only start
+        # at keyframes; every 10 frames made the first playlist take ~30 s (measured), every 2 about a few seconds.
+        enc = _make("nvv4l2h264enc", "live-enc", bitrate=bitrate, iframeinterval=2, idrinterval=2, insert_sps_pps=True)
         parse = _make("h264parse", "live-parse")
         out = _make("appsink", "live-out", emit_signals=True, sync=False, drop=True, max_buffers=4)
         out.connect("new-sample", self._on_sample)

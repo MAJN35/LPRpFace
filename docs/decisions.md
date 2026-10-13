@@ -385,12 +385,21 @@ Format: date, decision, reason, alternatives, source.
   This deliberately departs from A.7 "invalid reads are returned, never dropped" for video, at the user's request.
   The reader library still returns every read, `LPR_EMIT_INVALID=1` restores the old behaviour, and dropped reads are
   counted (`dropped_implausible` in /health). Image jobs (uploads) still return whatever was read.
-- **Live view did not play in the user's browser:** nginx logged 19 aborted playlist requests (499). The
-  on-demand detection stream at the inference rate needed longer than hls.js' 10 s to produce LL-HLS parts. The fix:
-  - standard fMP4 HLS (`hlsAlwaysRemux`);
-  - raw camera paths pulled continuously instead of on demand;
-  - player timeouts of 30 s;
-  - runOnDemandStartTimeout of 30 s.
+- **Live view did not play in the user's browser.** nginx logged aborted playlist requests (499). There were two
+  causes:
+  1. The real one: the detection-stream publisher copied encoded frames with the inference pipeline's timestamps
+     (its running time). A publisher started minutes after DeepStream therefore waited that long before sending
+     anything. The RTSP session received only keepalive bytes, measured: 1428 bytes and then +60 in 5 s. Timestamps
+     are now cleared and appsrc stamps the frames: 3 MB received, and the browser fetched segments continuously.
+  2. Slow start: LL-HLS parts at the inference rate, and a keyframe every 10 frames (about 5 s per segment at
+     ~2 fps), took longer than the player's 10 s timeout. The fix:
+     - standard fMP4 HLS;
+     - a keyframe every 2 frames;
+     - player timeouts of 30 s and runOnDemandStartTimeout of 30 s;
+     - raw camera paths pulled continuously, so the first raw playlist arrives in about 4–5 s.
+
+     `hlsAlwaysRemux` stays off: with it, mediamtx answers the on-demand detection path with 404 (measured).
+  The gateway sync loop now checks a path with GET before adding it (no "path already exists" log every 10 s).
 - **Multiple cameras at once:** a grid with every camera's raw stream side by side (the gateway only remuxes). The
   detection overlay stays one camera at a time (one encoder; the board's memory), selectable per tile.
 - **Notifications:** an in-page toast for each recognized plate on every page (live WebSocket). It can be muted with
