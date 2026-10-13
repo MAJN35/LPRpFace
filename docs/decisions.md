@@ -287,3 +287,15 @@ Format: date, decision, reason, alternatives, source.
   increased one step at a time, stopping at the first step that crosses the limit (`tools/run_grid.sh`).
   `build_engine.sh` default workspace changed to 1024 MiB accordingly.
 - **Privacy:** private images and frames derived from them are never opened or viewed; numeric checks only.
+
+## 2026-10-13: Bugs found by the compose deployment test (M8)
+
+- **Event schema path inside the image:** `events.py` resolved `<code>/../../schemas`, which is the repo root in a
+  checkout but `/schemas` in the image (`/app/app/events.py`), so every event failed validation and was not emitted.
+  Earlier runs mounted the repo and hid it. Fix: search `LPR_SCHEMA_PATH`, `/app/schemas`, repo path; the
+  Dockerfile now fails the build if the schema is not found.
+- **Empty env values:** compose passed `LPR_MAX_CAMERAS=""`; `int("")` crashed the service in a restart loop. Fix: empty
+  means default; capacity is now a block in `/health` (`max_cameras_memory_safe` 4, `max_cameras_at_target_fps` 0,
+  `target_fps_per_camera` 8) shown on the System health page.
+- **Deployment:** test volumes wiped; fresh stack with `deploy/sources.yaml` (camera placeholders disabled),
+  `FRONTEND_BIND=0.0.0.0`, bootstrap admin forced to change its password.

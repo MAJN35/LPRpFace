@@ -1,0 +1,45 @@
+# M8 full-stack test 2026-10-13T15:21:24Z
+test volumes wiped (only test data of this project)
+   db healthy
+   kafka healthy
+   backend healthy
+   frontend healthy
+   deepstream healthy
+## forced password change: admin must_change_password=True
+   events before change: 403 {"detail":"password_change_required"}
+   after change: must_change_password=False
+## steady state (one RTSP camera)
+   inference reachable: True | sources: {'cam-01': ('live', 26.0, 3.5), 'api-images': ('idle', 0.0, 0.0)}
+   worker: {'frames': 277, 'events': 19, 'errors': 0} | db events: 19
+   [steady] events emitted (JSONL): 20 | in database: 25 | emitted but missing in DB: 0
+## restart deepstream
+   deepstream healthy again
+   [after deepstream restart] events emitted (JSONL): 37 | in database: 43 | emitted but missing in DB: 0
+## restart kafka
+   kafka healthy again
+   [after kafka restart] events emitted (JSONL): 74 | in database: 79 | emitted but missing in DB: 0
+## restart consumer
+   consumer healthy again
+   [after consumer restart] events emitted (JSONL): 100 | in database: 105 | emitted but missing in DB: 0
+## restart backend
+   backend healthy again
+   [after backend restart] events emitted (JSONL): 136 | in database: 142 | emitted but missing in DB: 0
+## restart db
+   db healthy again
+   [after db restart] events emitted (JSONL): 163 | in database: 168 | emitted but missing in DB: 0
+## restart frontend
+   frontend healthy again
+   [after frontend restart] events emitted (JSONL): 189 | in database: 194 | emitted but missing in DB: 0
+## e2e against the running stack (no screenshots: real test plates are on screen)
+   PASS login
+   FAIL overview lists real API data
+   PASS history: Persian partial search finds only the matching plate
+   PASS Persian plate rendered right-to-left
+   PASS event detail
+   PASS live: new event arrives over WebSocket through nginx
+   PASS lists: add a plate in Persian to the blocklist, move it to the whitelist in one click
+   PASS system health page
+   PASS settings page
+   E2E FAILED (1)
+   peak RAM (board) during the test: 5247 MB
+# done

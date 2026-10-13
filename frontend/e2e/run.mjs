@@ -74,7 +74,9 @@ try {
   check(state === "app", "login");
   await page.waitForFunction(() => document.body.innerText.includes("Recent plates"));
   await new Promise((r) => setTimeout(r, 1500));
-  check((await text()).includes("27 Jim 814 | 55"), "overview lists real API data");
+  // real API data: the recent table has rows (with a live camera the newest rows are camera events, not demo plates)
+  const recentRows = await page.$$eval("section[aria-labelledby=recent-h] tbody tr", (r) => r.length);
+  check(recentRows > 0, `overview lists real API data (${recentRows} recent rows)`);
   await shot("overview");
 
   await page.goto(`${URL_}/history?`, { waitUntil: "networkidle0" });

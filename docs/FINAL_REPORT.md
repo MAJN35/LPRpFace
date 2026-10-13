@@ -131,9 +131,14 @@ All sources are entries in `deploy/sources.yaml` (or added at runtime in the das
 
 Standalone (no Kafka/backend): `LPR_EVENT_SINKS=stdout,jsonl` (README "Standalone mode").
 
-## 6. Deployment state
+## 6. Deployment state (now)
 
-M8 full-stack test (`tools/m8_stack_test.sh`, output `docs/m8_stack_test.txt`): see section 8.
+The full stack is running on the Jetson from `deploy/compose.yaml` with `deploy/.env` (git-ignored, random secrets):
+deepstream (v2 FP16, cached engine, 5 GB memory limit), kafka (KRaft), consumer, db (Postgres 15.10), backend,
+frontend. **Dashboard: http://192.168.1.131:8080** (`FRONTEND_BIND=0.0.0.0`; the only published port).
+Sign in as `admin` with `ADMIN_PASSWORD` from `deploy/.env`; you are forced to choose a new password (≥ 12
+characters) before anything else works. The cameras in `deploy/sources.yaml` are disabled placeholders; the API
+image job source is active. All test data was wiped before this deployment.
 
 ## 7. BLOCKED / PENDING and what is needed from you
 
@@ -150,6 +155,19 @@ M8 full-stack test (`tools/m8_stack_test.sh`, output `docs/m8_stack_test.txt`): 
 | Validation of Kaf, Gaf, Fe, D, S, protocol, Ze, free zone | synthetic only; no data for Se, Za, Pe (A.5) | real labelled images of these plates |
 | AGPL-3.0 (Ultralytics) | flagged in README | legal review before any distribution |
 
-## 8. Full-stack deployment (M8)
+## 8. Full-stack deployment test (M8)
 
-(filled in from `docs/m8_stack_test.txt`)
+`tools/m8_stack_test.sh` (output `docs/m8_stack_test.txt`), under the memory watchdog, one RTSP test camera:
+
+| Check | Result |
+|---|---|
+| All containers healthy from `docker compose up` | yes (db, kafka, backend, frontend, deepstream, consumer) |
+| Forced admin password change | before: every API call 403 `password_change_required`; after the change: unlocked |
+| Events camera → DeepStream → Kafka → consumer → Postgres → API | yes (one camera: 25 fps in, 3.5 fps inferred) |
+| Restart of each container (deepstream, kafka, consumer, backend, db, frontend) | each healthy again; **no loss**: every event id written by DeepStream (20 → 189 over the test) reached the database after every restart |
+| e2e (Chromium → nginx → backend) on the live stack | 9/9 PASS; on a fresh demo-only stack 10/10 incl. the forced password change (screenshots `docs/screenshots/`) |
+| Peak board RAM during the test | 5,247 MB |
+| Standalone mode (no Kafka/backend) | yes (M4 runs: `LPR_EVENT_SINKS=stdout,jsonl`) |
+
+Bugs this deployment test found and fixed (`docs/decisions.md`): the event schema was not found inside the image
+(every event was dropped; now a build-time check), an empty `LPR_MAX_CAMERAS` crashed the service.

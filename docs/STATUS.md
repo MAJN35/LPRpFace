@@ -13,7 +13,7 @@ nvpmodel mode 8 (MODE_20W_6CORE), jetson_clocks not changed. Final summary: [`FI
 | M5 | Kafka + consumer | DONE |
 | M6 | Backend | DONE (+ watchlists, user request) |
 | M7 | Frontend | DONE (gate = self-check: static mock `frontend_mock.html`) |
-| M8 | Integration, benchmark, hardening | see the M8 report below |
+| M8 | Integration, benchmark, hardening | DONE (USB/CSI and visual face-mask check PENDING) |
 
 ## Device facts (measured)
 
@@ -157,14 +157,34 @@ Decisions needed: approve a live-video gateway (mediamtx can serve WebRTC/HLS fr
   (docker `--memory=5g`, tegrastats log to file, watchdog kills the run below 800 MB available RAM), one pipeline at
   a time, sources increased one step at a time. Private images are never viewed, only measured numerically.
 
+## M8 report
+
+```
+Milestone M8 — Integration, benchmark, hardening: DONE
+Changed: deploy/compose.yaml (limits, capacity env), deepstream/app/{main,events,pipeline}.py, deepstream/Dockerfile
+         (schema check), tools/{guarded_run.sh,run_grid.sh,exp_grid.py,bench_sources.py,bench_report.py,
+         m8_stack_test.sh}, frontend (motion, forced password change), backend (migration 0003), docs/benchmark.md,
+         docs/FINAL_REPORT.md, docs/bench/*, docs/screenshots/*
+Checks run: tools/run_grid.sh -> 1/2/4 sources x default / interval 2 / max_fps 3 / ROI measured; 8 sources stopped by
+              the watchdog (772 MB available); table in docs/benchmark.md and FINAL_REPORT.md
+            tools/m8_stack_test.sh -> all containers healthy; forced password change enforced; each container
+              restarted, no event lost (189/189 reached the DB); e2e 9/9 on the live stack; peak RAM 5,247 MB
+            e2e on a fresh demo-only stack -> 10/10 incl. forced password change; screenshots in docs/screenshots
+            unit tests: reader 44, deepstream 15, consumer 10, backend 24, frontend 18 -> all pass
+PENDING (needs device): USB and CSI cameras (none attached); visual check of the face mask on the OSD output stream
+              (private frames are never viewed by the agent): enable LPR_OSD=1 and LPR_OUTPUT_RTSP and look at it
+Decisions needed: none (all decided by the user on 2026-10-13)
+```
+
 ## Open items / PENDING (all)
 
 1. USB and CSI cameras: not attached; configs and steps in the M4 report.
-2. Benchmarks with `jetson_clocks` (needs sudo; the user chose not to change it). Command: `sudo jetson_clocks` then
-   `python3 tools/bench_sources.py --counts 1 2 4 --out docs/bench/scaling_clocks.jsonl`.
-3. Live video in the browser: needs an approved WebRTC/HLS gateway.
-4. Dashboard on the LAN: set `FRONTEND_BIND=0.0.0.0` in `deploy/.env` once decided.
-5. Face-based person lists: not built (privacy rule).
+2. jetson_clocks: not used (user decision).
+3. Live video in the browser: not now (user decision).
+4. Dashboard on the LAN: done (`FRONTEND_BIND=0.0.0.0`, forced admin password change).
+5. Face-based person lists: stay forbidden (user decision).
+6b. Face mask on the output stream: implemented and counted, not visually verified.
+6c. 8–10 fps per camera: not reachable with YOLO12x at 960 on Xavier NX mode 8 (see FINAL_REPORT section 1, 4).
 6. Swapfile: not possible (no NVMe/SSD).
 7. Real camera URLs/credentials: placeholders in `deploy/sources.yaml` / `deploy/.env`.
 8. Real (non-synthetic) validation for Kaf, Gaf, Fe, D, S, protocol, Ze, free zone; no data at all for Se, Za, Pe (A.5).

@@ -56,9 +56,15 @@ docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
 docker compose -f deploy/compose.yaml --env-file deploy/.env ps
 ```
 
-Dashboard: `http://127.0.0.1:8080` (set `FRONTEND_BIND=0.0.0.0` in `.env` to publish it on the LAN; this is the
-only published port). Sign in with `ADMIN_USERNAME`/`ADMIN_PASSWORD`; create more users with
-`POST /api/v1/users` (admin). API docs: `http://127.0.0.1:8080/docs`.
+Dashboard: `http://<jetson-ip>:8080` (`FRONTEND_BIND=0.0.0.0`; use `127.0.0.1` to keep it local; this is the only
+published port). Sign in with `ADMIN_USERNAME`/`ADMIN_PASSWORD` from `deploy/.env`: the bootstrap admin **must change
+its password** (≥ 12 characters) before anything else works. Create more users with `POST /api/v1/users` (admin).
+API docs: `http://<jetson-ip>:8080/docs`. Watchlists (whitelist/blocklist/unknown for plates and persons): dashboard
+→ Lists.
+
+**Capacity (measured, v2 FP16 at 960, nvpmodel mode 8):** ~3.6 inferences/s in total; 1–2 cameras recommended
+(3.5 / 1.66 fps per camera, ~97–98 % plate-string accuracy on the test stream), 4 at most; 8 exceeds memory.
+Details: `docs/benchmark.md`, `docs/FINAL_REPORT.md`.
 
 **Standalone mode (no Kafka/backend):** events go to stdout and `/data/events/events.jsonl`:
 
@@ -114,6 +120,14 @@ docker run --rm -v lpr_lpr-data:/data -v "$PWD":/b alpine tar xzf /b/crops_YYYY-
 
 Backups contain personal data (plates, crops): store them encrypted and apply the same retention.
 
+## Running experiments safely (memory rules)
+
+The board has 6.7 GiB and no swapfile. Every experiment/benchmark/multi-source run goes through
+`tools/guarded_run.sh <log dir> <command>`: docker `--memory=5g` (set in `deepstream/run.sh` and for the compose
+`deepstream` service), tegrastats logged, a watchdog that kills the run below 800 MB available RAM, one pipeline at a
+time. `tools/run_grid.sh` steps sources 1 → 2 → 4 → 8 and stops at the first step that crosses the limit. Rebuild an
+engine only when the ONNX changes, with nothing else running (`build_engine.sh` uses a 1024 MiB workspace).
+
 ## Tests
 
 ```bash
@@ -121,6 +135,7 @@ tools/run_cpu.sh python -m pytest                                   # reader + m
 deepstream/run.sh python3 -m pytest -p no:cacheprovider deepstream/tests consumer/tests
 docker run --rm -v "$PWD":/work -w /work/backend lpr-backend:1.0 python -m pytest -q -p no:cacheprovider tests
 docker run --rm -v "$PWD/frontend":/app -w /app node:20.18.1-bookworm-slim npx vitest run
+tools/m8_stack_test.sh                 # full stack: restarts without loss, e2e (needs the Jetson)
 ```
 
 Hardware checks (Jetson): `tools/parity.py`, `tools/infer_cache.py --backend trt`, `tools/eval_reader.py`,

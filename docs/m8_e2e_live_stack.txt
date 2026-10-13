@@ -1,0 +1,10 @@
+PASS login
+PASS overview lists real API data (8 recent rows)
+PASS history: Persian partial search finds only the matching plate
+PASS Persian plate rendered right-to-left
+PASS event detail
+PASS live: new event arrives over WebSocket through nginx
+PASS lists: add a plate in Persian to the blocklist, move it to the whitelist in one click
+PASS system health page
+PASS settings page
+E2E OK
