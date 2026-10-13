@@ -2,6 +2,7 @@ import { Monitor, Moon, Play, Plus, RefreshCw, Square, Sun, Trash2, Upload } fro
 import { FormEvent, useState } from "react";
 import { ApiError, Camera, api } from "../api";
 import { Btn, useActions } from "../components/Button";
+import { LiquidGroup } from "../components/LiquidIndicator";
 import { Plate, StateView, useApi } from "../components/ui";
 import { Key, useI18n } from "../i18n";
 
@@ -83,9 +84,9 @@ export function Settings({ role, onTheme }: { role: string; onTheme: (t: "light"
         </section>
       )}
       <section className="card raised" aria-labelledby="th-h"><h2 id="th-h">{t("set.appearance")}</h2>
-        <div className="row">{(["auto", "light", "dark"] as const).map((th) => (
+        <LiquidGroup selector='[aria-pressed="true"]' activeKey={theme} className="row" role="group" aria-label={t("set.appearance")}>{(["auto", "light", "dark"] as const).map((th) => (
           <Btn key={th} icon={{ auto: Monitor, light: Sun, dark: Moon }[th]} aria-pressed={theme === th}
-            onClick={() => { setTheme(th); onTheme(th); }}>{t(`set.theme.${th}` as Key)}</Btn>))}</div>
+            onClick={() => { setTheme(th); onTheme(th); }}>{t(`set.theme.${th}` as Key)}</Btn>))}</LiquidGroup>
       </section>
     </>
   );

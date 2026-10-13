@@ -1,5 +1,6 @@
 import { Languages } from "lucide-react";
 import { Key, Lang, useI18n } from "../i18n";
+import { LiquidGroup } from "./LiquidIndicator";
 
 // fa/en switch; stored like the theme (localStorage "lpr.lang"), applied to <html lang dir>. Compact (collapsed
 // sidebar): one icon button that switches to the other language.
@@ -15,11 +16,11 @@ export function LangSwitch({ compact = false }: { compact?: boolean }) {
     );
   }
   return (
-    <div role="group" aria-label={t("lang.label")} className="row lang-switch">
+    <LiquidGroup selector='[aria-pressed="true"]' activeKey={lang} role="group" aria-label={t("lang.label")} className="row lang-switch">
       <Languages size={18} className="muted" aria-hidden="true" />
       {(["fa", "en"] as Lang[]).map((l) => (
         <button key={l} type="button" lang={l} aria-pressed={lang === l} onClick={() => setLang(l)}>{t(`lang.${l}` as Key)}</button>
       ))}
-    </div>
+    </LiquidGroup>
   );
 }

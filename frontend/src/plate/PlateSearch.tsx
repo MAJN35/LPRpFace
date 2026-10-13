@@ -2,6 +2,7 @@
 import { Asterisk, CircleHelp, Equal } from "lucide-react";
 import { useId, useState } from "react";
 import { Btn } from "../components/Button";
+import { LiquidGroup } from "../components/LiquidIndicator";
 import { Key, useI18n } from "../i18n";
 import { ZONES } from "./charset";
 import { FORMATS, Match, PlateFormat, SlotValues, emptySlots, formatById } from "./formats";
@@ -35,12 +36,12 @@ export function PlateSearch({ draft, onChange, error, onError }: {
             </select>
           </label>
         )}
-        <div role="radiogroup" aria-label={t("plate.mode")} className="row seg">
+        <LiquidGroup selector='[aria-checked="true"]' activeKey={draft.match} role="radiogroup" aria-label={t("plate.mode")} className="row seg">
           {(["partial", "exact"] as Match[]).map((m) => (
             <Btn key={m} role="radio" icon={m === "exact" ? Equal : Asterisk} aria-checked={draft.match === m} className={draft.match === m ? "inset" : ""}
               onClick={() => { onError(null); onChange({ ...draft, match: m }); }}>{t(m === "exact" ? "plate.exact" : "plate.partial")}</Btn>
           ))}
-        </div>
+        </LiquidGroup>
       </div>
       <PlateEditor format={f} values={draft.values} zone={draft.zone} label={t("plate.preview", { type: typeName })}
         onChange={(values) => onChange({ ...draft, values })} onError={onError} />

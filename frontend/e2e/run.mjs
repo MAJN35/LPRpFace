@@ -245,6 +245,14 @@ try {
   // sidebar: icons on every item, collapse with tooltips, state remembered
   const navIcons = await page.$$eval("nav.side a.nav-item", (as) => as.map((a) => !!a.querySelector("svg")));
   check(navIcons.length === 8 && navIcons.every(Boolean), `every menu item has an icon (${navIcons.length})`);
+  // liquid menu indicator: flows to the clicked item and settles exactly on it
+  await page.click("nav.side a[href='/people']");
+  await new Promise((r) => setTimeout(r, 900));
+  const lq = await page.evaluate(() => {
+    const d = document.querySelector("nav.side .liquid").getBoundingClientRect(), a = document.querySelector("nav.side a.active").getBoundingClientRect();
+    return [d.top, d.height, d.width].map(Math.round).join() === [a.top, a.height, a.width].map(Math.round).join();
+  });
+  check(lq, "liquid menu indicator settles on the selected item");
   const w0 = await page.$eval("nav.side", (n) => n.getBoundingClientRect().width);
   await page.click("nav.side .nav-toggle");
   await new Promise((r) => setTimeout(r, 500));

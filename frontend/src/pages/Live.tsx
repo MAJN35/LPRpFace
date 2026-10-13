@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Camera, EventSummary, LiveState, Status, connectLive } from "../api";
 import { Btn } from "../components/Button";
+import { LiquidGroup } from "../components/LiquidIndicator";
 import { LiveVideo } from "../components/LiveVideo";
 import { ListBadge, Plate, PlateType, StateView, Validity, fmtTime, useApi } from "../components/ui";
 import { useI18n } from "../i18n";
@@ -26,10 +27,10 @@ function LiveGrid({ cams }: { cams: Camera[] }) {
   return (
     <section className="card raised" aria-label={t("live.title")}>
       <div className="card-head">
-        <div className="row" role="group" aria-label={t("live.layout")} style={{ gap: 6 }}>
+        <LiquidGroup selector='[aria-pressed="true"]' activeKey={layout} className="row" role="group" aria-label={t("live.layout")} style={{ gap: 6 }}>
           <Btn icon={LayoutGrid} aria-pressed={layout === "grid"} onClick={() => setLayout("grid")}>{t("live.grid")}</Btn>
           <Btn icon={Square} aria-pressed={layout === "single"} onClick={() => setLayout("single")}>{t("live.single")}</Btn>
-        </div>
+        </LiquidGroup>
         {layout === "single" && (
           <label className="row" style={{ display: "flex", alignItems: "center", gap: 8 }}>{t("live.camera")}
             <select className="inset" value={focus} onChange={(e) => setFocus(e.target.value)}>

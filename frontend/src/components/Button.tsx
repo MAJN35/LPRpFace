@@ -24,6 +24,7 @@ export const Btn = forwardRef<HTMLButtonElement, Props>(function Btn(
   const next = useRef(0);
   const busy = state === "busy";
   function down(e: PointerEvent<HTMLButtonElement>) {
+    if (variant !== "primary") { onPointerDown?.(e); return; }   // ripple: primary actions only (restrained)
     // ripple from the pointer position (physical coordinates, so it is direction-independent)
     const r = e.currentTarget.getBoundingClientRect();
     const id = ++next.current;

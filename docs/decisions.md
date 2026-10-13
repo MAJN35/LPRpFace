@@ -464,3 +464,31 @@ Format: date, decision, reason, alternatives, source.
   - brand-blue plate boxes with the read above them;
   - amber outline (or the mask, with face blur) on faces;
   - a header bar with camera, model fps and local time (`TZ`, default Asia/Tehran; events stay UTC).
+
+## 2026-10-14: Liquid motion for selection indicators and buttons (user request)
+
+- **Not glassmorphism:** the colors, layout and components stay; only motion changed.
+- **No animation library:** the project had none. One small spring simulation (`components/LiquidIndicator.tsx`,
+  about 150 lines) does the effect; Framer Motion would add roughly 50 KB for one effect.
+- **The drop:**
+  - It is a single element carrying the selected item's inset highlight (and, in the sidebar, the accent bar). Each of
+    its four edges is a spring.
+  - The edge facing the destination is stiff (k 520, damping ratio 0.82) and leads; the trailing edge is soft (k 150,
+    0.72) and follows. The drop therefore stretches along its path, narrows up to 18 % per side while stretched, and
+    settles with a slight overshoot.
+  - A new selection keeps the current position and velocity, so rapid clicks bend the motion instead of restarting it.
+- **Measurement:** the active item is measured when the selection changes and whenever the group resizes
+  (collapse/expand, language/direction, wrapping on phones). Physical edges, so up/down, RTL/LTR and rows all work.
+  The route drives it, so back/forward and direct URLs are correct; a direct load places it without animation.
+- **Cost:** requestAnimationFrame runs only while the drop moves. Under prefers-reduced-motion it jumps.
+- **Where:** the sidebar menu, and every tab or segmented group: plate match mode, list kind and list tabs, people
+  filter, library kind, live layout, theme, language.
+- **Bug found in Chromium:** rAF timestamps can be earlier than the clock read when the frame was requested. That
+  gave a negative time step and the drop briefly grew to thousands of px. The first frame now only sets the clock,
+  and steps are clamped to 1–32 ms; a regression test covers it.
+- **Measured in Chromium:** after every navigation the drop settles exactly on the active item: down, up, four rapid
+  clicks, back button, collapsed, expanded, RTL, reduced motion. The longest jump stretches it to 198 px (item
+  43 px) at about 65 % width.
+- **Buttons:** a press is a quick asymmetric squeeze (scale .975 × .94, 90 ms); the release springs back over 460 ms
+  with a slight overshoot (`--ease-spring`). The ripple stays only on primary actions.
+- **Pages:** the content fades in 70 ms after the click, so the indicator leads and the page follows.

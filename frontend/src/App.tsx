@@ -1,9 +1,10 @@
 import { Activity, Bell, BellOff, BellRing, Cctv, Images, UsersRound, Gauge, ListChecks, LogOut, LucideIcon, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
   ScanSearch, Settings as SettingsIcon } from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, auth } from "./api";
 import { Btn } from "./components/Button";
+import { LiquidIndicator } from "./components/LiquidIndicator";
 import { LangSwitch } from "./components/LangSwitch";
 import { Logo } from "./components/Logo";
 import { Notifications, readNotify, storeNotify } from "./components/Notifications";
@@ -45,6 +46,8 @@ function readNav() { try { return localStorage.getItem(NAV_KEY) === "collapsed";
 
 export function App() {
   const { t, lang } = useI18n();
+  const { pathname } = useLocation();               // drives the liquid menu indicator (also back/forward, direct URLs)
+  const menu = useRef<HTMLDivElement>(null);
   const [collapsed, setCollapsed] = useState(readNav);
   const [notify, setNotify] = useState(readNotify);
   const [sys, setSysState] = useState<SysState>(sysState);
@@ -78,13 +81,16 @@ export function App() {
           <Btn icon={CollapseIcon} iconOnly variant="ghost" className="nav-toggle" label={t(collapsed ? "nav.expand" : "nav.collapse")}
             aria-expanded={!collapsed} onClick={toggleNav} />
         </div>
-        {LINKS.map(([to, label, Icon]) => (
-          <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `nav-item has-tip${isActive ? " active" : ""}`}
-            data-tip={t(label)}>
-            <Icon className="nav-icon" size={20} strokeWidth={2} aria-hidden="true" />
-            <span className="nav-label">{t(label)}</span>
-          </NavLink>
-        ))}
+        <div className="nav-links liquid-host" ref={menu}>
+          {LINKS.map(([to, label, Icon]) => (
+            <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => `nav-item has-tip${isActive ? " active" : ""}`}
+              data-tip={t(label)}>
+              <Icon className="nav-icon" size={20} strokeWidth={2} aria-hidden="true" />
+              <span className="nav-label">{t(label)}</span>
+            </NavLink>
+          ))}
+          <LiquidIndicator group={menu} selector="a.active" activeKey={`${pathname}|${collapsed}|${lang}`} className="bar" />
+        </div>
         <div className="side-foot">
           <Btn icon={notify ? Bell : BellOff} className="nav-out" iconOnly={collapsed} aria-pressed={notify}
             label={t(notify ? "notify.mute" : "notify.unmute")} tip={collapsed ? undefined : t("notify.hint")}

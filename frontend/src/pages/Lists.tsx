@@ -2,6 +2,7 @@ import { FormEvent, useState } from "react";
 import { ApiError, LISTS, ListPage, ListStatus, PersonEntry, PlateEntry, Unregistered, api, json, query } from "../api";
 import { CarFront, Plus, Search, Trash2, UserPlus, UserRound, X } from "lucide-react";
 import { ActionState, Btn, useActions } from "../components/Button";
+import { LiquidGroup } from "../components/LiquidIndicator";
 import { LIST_ICON, ListBadge, ListSwitch, Plate, StateView, fmtTime, useApi, useListLabel } from "../components/ui";
 import { useI18n } from "../i18n";
 
@@ -51,13 +52,13 @@ export function Lists({ role }: { role: string }) {
       <h1>{t("lists.title")}</h1>
       <p className="sub">{t("lists.sub")}</p>
       {msg && <div className="banner inset" role="status"><span className={msg.bad ? "bad" : "ok"}>{msg.text}</span></div>}
-      <div className="row" role="tablist" aria-label={t("lists.kind")} style={{ marginBottom: 14 }}>
+      <LiquidGroup selector='[aria-selected="true"]' activeKey={kind} className="row" role="tablist" aria-label={t("lists.kind")} style={{ marginBottom: 14 }}>
         {(["plate", "person"] as Kind[]).map((k) => (
           <Btn key={k} role="tab" icon={k === "plate" ? CarFront : UserRound} aria-selected={kind === k} className={kind === k ? "inset" : ""}
             onClick={() => { setKind(k); setSelected([]); }}>{k === "plate" ? t("lists.plates") : t("lists.persons")}</Btn>
         ))}
-      </div>
-      <div className="row" role="tablist" aria-label={t("lists.list")} style={{ marginBottom: 14 }}>
+      </LiquidGroup>
+      <LiquidGroup selector='[aria-selected="true"]' activeKey={list} className="row" role="tablist" aria-label={t("lists.list")} style={{ marginBottom: 14 }}>
         {LISTS.map((s) => (
           <Btn key={s} role="tab" icon={LIST_ICON[s]} aria-selected={list === s} className={list === s ? "inset" : ""}
             onClick={() => { setList(s); setSelected([]); }}>
@@ -67,7 +68,7 @@ export function Lists({ role }: { role: string }) {
           <Search size={16} aria-hidden="true" />
           <input className="inset" dir="auto" placeholder={kind === "plate" ? t("lists.searchPlate") : t("lists.searchName")}
             value={q} onChange={(e) => setQ(e.target.value)} /></label>
-      </div>
+      </LiquidGroup>
 
       {canEdit && selected.length > 0 && (
         <div className="banner inset row" role="region" aria-label={t("lists.bulk")}>

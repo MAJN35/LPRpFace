@@ -5,6 +5,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, ListPage, Snapshot, api, cropUrl, faceUrl, query } from "../api";
 import { Btn, useActions } from "../components/Button";
+import { LiquidGroup } from "../components/LiquidIndicator";
 import { ListBadge, Plate, StateView, fmtTime, useApi } from "../components/ui";
 import { useI18n } from "../i18n";
 import { ConfirmBtn } from "./PersonDetail";
@@ -44,12 +45,12 @@ export function Library({ role }: { role: string }) {
     <>
       <h1>{t("lib.title")}</h1><p className="sub">{t("lib.sub")}</p>
       <div className="card raised row lib-bar">
-        <div role="radiogroup" aria-label={t("lib.kind")} className="row seg">
+        <LiquidGroup selector='[aria-checked="true"]' activeKey={kind} role="radiogroup" aria-label={t("lib.kind")} className="row seg">
           {([["all", "lib.all"], ["plate", "lib.plates"], ["face", "lib.faces"]] as const).map(([v, k]) => (
             <Btn key={v} role="radio" aria-checked={kind === v} className={kind === v ? "inset" : ""}
               onClick={() => { setKind(v); setOffset(0); setSel(new Set()); }}>{t(k)}</Btn>
           ))}
-        </div>
+        </LiquidGroup>
         <label>{t("hist.camera")}<input className="inset" dir="ltr" value={camera} onChange={(e) => { setCamera(e.target.value); setOffset(0); }} /></label>
         <Btn icon={RefreshCw} iconOnly variant="ghost" spin={page.loading} label={t("common.refresh")} onClick={page.reload} />
         <span className="muted" aria-live="polite">{page.data ? t("lib.count", { n: total }) : ""}</span>

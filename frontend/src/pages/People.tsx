@@ -5,6 +5,7 @@ import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { ApiError, ListPage, ListStatus, PersonEntry, api, faceUrl, json, query } from "../api";
 import { Btn, useActions } from "../components/Button";
+import { LiquidGroup } from "../components/LiquidIndicator";
 import { ListSwitch, StateView, fmtTime, useApi } from "../components/ui";
 import { Key, useI18n } from "../i18n";
 
@@ -87,11 +88,11 @@ export function People({ role }: { role: string }) {
           <input className="inset" dir="auto" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("people.search")} />
         </label>
         <Btn type="submit" variant="primary" icon={Search} state={page.loading && !!applied ? "busy" : "idle"}>{t("hist.search")}</Btn>
-        <div role="radiogroup" aria-label={t("people.named")} className="row seg">
+        <LiquidGroup selector='[aria-checked="true"]' activeKey={named} role="radiogroup" aria-label={t("people.named")} className="row seg">
           {([["", "people.all"], ["true", "people.named"], ["false", "people.unnamed"]] as const).map(([v, k]) => (
             <Btn key={v} role="radio" aria-checked={named === v} className={named === v ? "inset" : ""} onClick={() => setNamed(v)}>{t(k)}</Btn>
           ))}
-        </div>
+        </LiquidGroup>
         <label>{t("people.sort")}
           <select className="inset" value={sort} onChange={(e) => setSort(e.target.value as "recent" | "name")}>
             <option value="recent">{t("people.sortRecent")}</option><option value="name">{t("people.sortName")}</option>
