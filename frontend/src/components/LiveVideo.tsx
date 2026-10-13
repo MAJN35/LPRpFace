@@ -5,7 +5,7 @@ import { useI18n } from "../i18n";
 
 type State = "connecting" | "playing" | "unavailable" | "unsupported";
 
-// Plays /live/<path>/index.m3u8 (mediamtx LL-HLS through nginx, sent with the dashboard token). Retries every 5 s
+// Plays /hls/<path>/index.m3u8 (mediamtx LL-HLS through nginx, sent with the dashboard token). Retries every 5 s
 // while the stream is not there yet (camera offline, pipeline starting, no viewer-triggered pull yet).
 export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label: string; HlsImpl?: typeof Hls }) {
   const { t } = useI18n();
@@ -31,7 +31,7 @@ export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label:
         setState("unavailable");
         timer = window.setTimeout(start, 5000);
       });
-      hls.loadSource(`/live/${encodeURIComponent(path)}/index.m3u8`);
+      hls.loadSource(`/hls/${encodeURIComponent(path)}/index.m3u8`);
       hls.attachMedia(el);
     };
     start();

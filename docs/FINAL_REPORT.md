@@ -171,3 +171,13 @@ image job source is active. All test data was wiped before this deployment.
 
 Bugs this deployment test found and fixed (`docs/decisions.md`): the event schema was not found inside the image
 (every event was dropped; now a build-time check), an empty `LPR_MAX_CAMERAS` crashed the service.
+
+## 9. Added after M8 (user requests, 2026-10-13)
+
+- **Live view:** Live page with each camera's raw stream (network cameras) and a detection stream (boxes and plate
+  text drawn by DeepStream, one camera at a time). Served as LL-HLS through nginx `/hls/`, only for signed-in users.
+  Details in `decisions.md`.
+- **Persian-first dashboard:** Persian by default (RTL, Vazirmatn, Persian digits, Solar Hijri dates), with an
+  English switch. The plate search draws a realistic Iranian plate whose positions you fill by list or by typing,
+  with exact and partial match. Only the standard plate layout is verified; the other types are marked approximate
+  (open item 10 in STATUS.md).

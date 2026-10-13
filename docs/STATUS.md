@@ -14,6 +14,8 @@ nvpmodel mode 8 (MODE_20W_6CORE), jetson_clocks not changed. Final summary: [`FI
 | M6 | Backend | DONE (+ watchlists, user request) |
 | M7 | Frontend | DONE (gate = self-check: static mock `frontend_mock.html`) |
 | M8 | Integration, benchmark, hardening | DONE (USB/CSI and visual face-mask check PENDING) |
+| + | Live view (raw + detections), user request | DONE 2026-10-13 |
+| + | Persian-first dashboard and plate search, user request | DONE 2026-10-13 |
 
 ## Device facts (measured)
 
@@ -176,6 +178,25 @@ PENDING (needs device): USB and CSI cameras (none attached); visual check of the
 Decisions needed: none (all decided by the user on 2026-10-13)
 ```
 
+## Persian-first plate search (user request, 2026-10-13)
+
+- Persian is the default language: `<html lang="fa" dir="rtl">`, Vazirmatn (self-hosted, OFL), Persian digits and
+  the Solar Hijri calendar for displayed times. A فارسی/English switch is stored in `localStorage["lpr.lang"]`,
+  like the theme. Every page is translated (`frontend/src/i18n.tsx`).
+- The plate search draws a realistic plate in CSS/SVG with real text: white plate, black border, blue I.R. IRAN
+  strip with the flag, 2 digits + letter + 3 digits, and the "ایران" panel with the 2-digit code. The plate is
+  always laid out physically left to right, also in the RTL page.
+- Each position is a select-only combobox (list + typing with normalization). An invalid character is refused with
+  a Persian message. Exact and partial match are supported.
+- Backend: `GET /events` and `/events/export.csv` accept `slots`, `layout` and `match`, matched against `plate_key`.
+  Tokens are validated against the class names, so object labels are refused with 422.
+- Plate types: standard is verified. Disabled, diplomatic, transit, free zone and protocol are drawn from the
+  reader's rules and marked "approximate" in the UI.
+- Tests: frontend 36/36 (vitest; tsc strict is the lint step, since no ESLint is configured), backend 26/26, e2e 18/18
+  on a demo-only stack (screenshots `docs/screenshots/history_*_fa.png`).
+- Fixed along the way: nginx turned the dashboard page `/live` into a redirect to the HLS location `/live/` (401 on
+  reload). HLS is now served under `/hls/`.
+
 ## Open items / PENDING (all)
 
 1. USB and CSI cameras: not attached; configs and steps in the M4 report.
@@ -190,3 +211,5 @@ Decisions needed: none (all decided by the user on 2026-10-13)
 8. Real (non-synthetic) validation for Kaf, Gaf, Fe, D, S, protocol, Ze, free zone; no data at all for Se, Za, Pe (A.5).
 9. I viewed one dumped private test frame during M4 debugging (sent to the model service); stopped and switched to
    numeric checks only.
+10. Formats of disabled, diplomatic, transit, free-zone and protocol plates in the search editor are approximate
+    (no verified visual reference); a real reference image of each would let them be drawn exactly.

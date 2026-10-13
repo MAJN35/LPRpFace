@@ -27,7 +27,7 @@ describe("LiveVideo", () => {
     const { FakeHls, inst } = fakeHls();
     // @ts-expect-error test double
     render(<LiveVideo path="cam-01-osd" label="cam" HlsImpl={FakeHls} />);
-    expect(inst.src).toBe("/live/cam-01-osd/index.m3u8");
+    expect(inst.src).toBe("/hls/cam-01-osd/index.m3u8");
     expect(inst.headers.Authorization).toBe("Bearer tok123");
     expect(screen.getByRole("status")).toHaveTextContent("Connecting");
     act(() => inst.handlers.f("f", { fatal: false }));

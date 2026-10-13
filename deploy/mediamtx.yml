@@ -1,5 +1,5 @@
 # Live-video gateway (mediamtx 1.12.3), internal network only (no published ports). The browser reaches HLS
-# through nginx (/live/, behind the dashboard login).
+# through nginx (/hls/, behind the dashboard login).
 #   <id>      raw camera stream: registered by DeepStream via the API, pulled from the camera only while watched
 #   <id>-osd  detection overlay published by DeepStream (H.264)
 logLevel: warn

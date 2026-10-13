@@ -305,7 +305,7 @@ Format: date, decision, reason, alternatives, source.
 - **Decision:** built at the user's request ("add live OSD for detections and also add live view (raw and with OSD)"),
   which replaces the earlier "live-video gateway: not now".
 - **Gateway:** mediamtx 1.12.3 (`bluenviron/mediamtx:1.12.3-ffmpeg`, digest pinned), internal only, 512 MB limit. The
-  browser gets LL-HLS through nginx `/live/`, guarded by `auth_request` → `GET /api/v1/auth/check`; no new port.
+  browser gets LL-HLS through nginx `/hls/` (not `/live/`, which nginx would turn into a redirect of the dashboard page `/live`), guarded by `auth_request` → `GET /api/v1/auth/check`; no new port.
   Browsers cannot play RTSP; WebRTC would need UDP ports, which LL-HLS over the existing port does not.
 - **Raw:** DeepStream registers each network camera as an on-demand mediamtx path (pulled only while watched).
   USB, CSI and files have no raw view.
@@ -319,3 +319,31 @@ Format: date, decision, reason, alternatives, source.
   which keeps a camera added in the dashboard across restarts.
 - **Pipeline start:** waits at most 10 s for PLAYING. Before, it blocked forever when a source had no data yet,
   and the control API never answered.
+
+## 2026-10-13: Persian-first dashboard and plate search
+
+- **Decision (user request):** Persian is the default UI language (RTL); English stays one click away and the
+  choice is stored per browser (`localStorage["lpr.lang"]`, the same mechanism as the theme). No i18n library: one
+  typed dictionary (`frontend/src/i18n.tsx`; missing keys fail the TypeScript build).
+- **Plate rendering:** CSS/SVG plus real text, no images. The plate keeps its physical left-to-right order inside the
+  RTL page (`dir="ltr"` on the plate), which matches the reader's `plate_string_fa` order. Only the standard layout
+  follows a verified rule. The other types are drawn from the reader's rules (`reader/lpr_reader/reader.py`) and
+  labelled approximate; no regional codes, symbols or format rules were invented.
+- **Character lists** come from the model's class table: digits 0–9, letters 10–28/31/32/42–44, Zhe 29, D/S 45/46.
+  `frontend/src/test/plate_charset.test.ts` checks them against `models/v2/class_names.json`. plate, face, freezone,
+  fz_* and protocol are never selectable; the backend also refuses them (422). Zones (fz_*) are a separate selector.
+- **Search API:** the existing `GET /events` gains `slots` (one token per position), `layout`
+  (standard|freezone|protocol) and `match` (exact|partial), which become a condition on the indexed `plate_key`:
+  - exact compares for equality;
+  - partial turns an empty digit position into `_` and an empty letter position into `%`, because letter names
+    differ in length;
+  - protocol (unknown length) matches the filled run anywhere.
+
+  No schema change and no migration; the free-text `q` search is unchanged.
+- **Plate type filter:** applied only when the plate says something (a position filled, exact match, a zone) or a
+  non-standard type is chosen, so the untouched form lists every event. Colour variants (taxi, government, …) share
+  the standard layout and are stored as `standard`, because the model cannot see colours.
+- **Combobox:** each position follows the WAI-ARIA select-only combobox pattern (button + listbox). Typing works with
+  a physical keyboard (keydown); on phones the list is used, since buttons do not open a virtual keyboard.
+- **HLS path:** the nginx proxy moved from `/live/` to `/hls/`. A prefix location with proxy_pass makes nginx answer
+  `/live` with a redirect to `/live/`, which broke reloading the dashboard's Live page (found by the e2e).

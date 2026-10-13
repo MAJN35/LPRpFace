@@ -65,7 +65,7 @@ services:
     depends_on:
       kafka-init: {condition: service_completed_successfully}
 
-  media:                          # live-video gateway (raw + OSD streams); internal only, HLS via nginx /live/
+  media:                          # live-video gateway (raw + OSD streams); internal only, HLS via nginx /hls/
     image: bluenviron/mediamtx:1.12.3-ffmpeg@sha256:f4bbb3af99b7d9a812499f69f6dd3de5ac54339a788c1c5e45dc36f9c1dffbd3
     restart: unless-stopped
     logging: *logging

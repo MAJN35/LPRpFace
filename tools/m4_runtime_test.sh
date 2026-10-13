@@ -52,7 +52,7 @@ if [[ "${LPR_LIVE:-0}" == "1" ]]; then
       -v error -rtsp_transport tcp -select_streams v:0 -show_entries stream=codec_name,width,height,avg_frame_rate -of csv=p=0 "rtsp://media:8554/$path" 2>&1 | head -1)
     echo "   $path: HLS playlist HTTP $code | stream: $info"
   done
-  echo "   without login through nginx: HTTP $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/live/cam-01/index.m3u8)"
+  echo "   without login through nginx: HTTP $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/hls/cam-01/index.m3u8)"
   ctl GET /health | python3 -c "import json,sys; h=json.load(sys.stdin); print('   cam-01 live:', h['sources']['cam-01'].get('live'))"
 fi
 echo "## 2. runtime add cam-02 (RTSP H.265 2560x1440)"
