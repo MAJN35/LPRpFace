@@ -6,7 +6,7 @@ Last update: 2026-10-13 (M0)
 
 | | Milestone | State |
 |---|---|---|
-| M0 | Discovery | DONE, **GATE: waiting for answers** |
+| M0 | Discovery | DONE, gate passed 2026-10-13 |
 | M1 | Model check (CPU) | not started |
 | M2 | Decoder + reader library | not started |
 | M3 | TensorRT on Jetson | not started (GATE after) |
@@ -63,9 +63,8 @@ Computed with `sha256sum`; **not yet confirmed against the source bundles** (zip
 
 ## Open questions
 
-See the M0 report (asked 2026-10-13): device access, sources, target fps, placement, pyds vs C++, outputs, face blur,
-first model, reuse of the earlier project, AGENTS.md file, CPU tooling environment, test images, checksum confirmation.
+M0 questions answered 2026-10-13 (see decisions.md).
 
 ## PENDING (needs device / user)
 
-- `sudo nvpmodel -q` and `sudo jetson_clocks --show` output (sudo needs a password).
+- `sudo jetson_clocks --show` output (before benchmarks in M3/M8). `nvpmodel -q` → MODE_20W_6CORE (8), from user.
