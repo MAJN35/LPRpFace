@@ -192,3 +192,33 @@ def test_image_upload_validation(client, auth):
     assert r.status_code == 415
     r = client.post("/api/v1/images", headers=auth, files={"file": ("a.jpg", b"\xff\xd8\xff" + b"0" * 10, "image/jpeg")})
     assert r.status_code == 503   # inference service not running in unit tests
+
+
+def test_slot_search_exact_and_partial(client, auth):
+    src = {**BASE["source"], "id": "cam-p"}
+    post = lambda **kw: client.post("/api/v1/ingest/events", headers=KEY, json=ev(camera_id="cam-p", source=src, **kw))  # noqa: E731
+    post(plate_string_latin="45 Ye 299 | 31", plate_string_fa="۴۵ ی ۲۹۹ | ۳۱", plate_key="45Ye29931")
+    post(plate_string_latin="45 Sad 299 | 31", plate_string_fa="۴۵ ص ۲۹۹ | ۳۱", plate_key="45Sad29931")
+    post(plate_string_latin="45 S 299 | 31", plate_string_fa="۴۵ S ۲۹۹ | ۳۱", plate_key="45S29931", plate_type="diplomatic")
+    post(plate_type="freezone", zone="KISH", plate_string_latin="96213", plate_string_fa="۹۶۲۱۳", plate_key="96213")
+    post(plate_type="protocol", plate_string_latin="1 2 3 4", plate_string_fa="۱ ۲ ۳ ۴", plate_key="1234",
+         is_valid=None, invalid_reason="not_applicable")
+
+    def hits(slots, layout="standard", match="partial", **p):
+        r = client.get("/api/v1/events", params={"camera_id": "cam-p", "slots": slots, "layout": layout, "match": match,
+                                                 **p}, headers=auth)
+        return r.json()["total"] if r.status_code == 200 else r.status_code
+
+    assert hits("4,5,Ye,2,9,9,3,1", match="exact") == 1
+    assert hits("4,5,S,2,9,9,3,1", match="exact") == 1          # D/S marker is not a prefix of Sad/Sin/Shin
+    assert hits("4,5,,2,9,9,3,1") == 3                           # empty letter = any letter
+    assert hits("4,5,,2,9,9,3,1", plate_type="standard") == 2
+    assert hits(",,Sad,,,,,") == 1 and hits(",,,,9,,,") == 3 and hits(",,,,,,,") == 3 + 2
+    assert hits("4,,Ye,2,9,9,3,1", match="exact") == 422         # exact needs every position
+    assert hits("4,5,plate,2,9,9,3,1") == 422                    # object labels are never characters
+    assert hits("4,5,fz_KISH,2,9,9,3,1") == 422 and hits("4,5,face,2,9,9,3,1") == 422
+    assert hits("4,5,Ye,2,9,9,3") == 422 and hits("a,5,Ye,2,9,9,3,1") == 422
+    assert hits("9,6,2,1,3", layout="freezone", match="exact", zone="KISH") == 1
+    assert hits("9,,,,3", layout="freezone") == 1 and hits("9,6,2,1", layout="freezone") == 422
+    assert hits(",2,3,,", layout="protocol") == 1 and hits("1,2,3,4", layout="protocol", match="exact") == 1
+    assert hits("2,3,4,5", layout="protocol", match="exact") == 0

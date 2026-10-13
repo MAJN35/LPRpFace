@@ -1,12 +1,14 @@
 import Hls from "hls.js";
 import { useEffect, useRef, useState } from "react";
 import { auth } from "../api";
+import { useI18n } from "../i18n";
 
 type State = "connecting" | "playing" | "unavailable" | "unsupported";
 
 // Plays /live/<path>/index.m3u8 (mediamtx LL-HLS through nginx, sent with the dashboard token). Retries every 5 s
 // while the stream is not there yet (camera offline, pipeline starting, no viewer-triggered pull yet).
 export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label: string; HlsImpl?: typeof Hls }) {
+  const { t } = useI18n();
   const video = useRef<HTMLVideoElement>(null);
   const [state, setState] = useState<State>("connecting");
   useEffect(() => {
@@ -40,9 +42,9 @@ export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label:
       <video ref={video} muted playsInline autoPlay aria-label={label} data-state={state} />
       {state !== "playing" && (
         <div className="video-state" role="status">
-          {state === "connecting" && <span><span className="dot pulse" aria-hidden="true" style={{ background: "var(--warn)" }} /> Connecting…</span>}
-          {state === "unavailable" && <span>Stream not available yet — retrying.</span>}
-          {state === "unsupported" && <span>This browser cannot play the live stream.</span>}
+          {state === "connecting" && <span><span className="dot pulse" aria-hidden="true" style={{ background: "var(--warn)" }} /> {t("video.connecting")}</span>}
+          {state === "unavailable" && <span>{t("video.unavailable")}</span>}
+          {state === "unsupported" && <span>{t("video.unsupported")}</span>}
         </div>
       )}
     </div>

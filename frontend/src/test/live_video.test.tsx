@@ -1,4 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
+import { render } from "./render";
 import { describe, expect, it } from "vitest";
 import { LiveVideo } from "../components/LiveVideo";
 

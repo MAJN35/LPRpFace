@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { NavLink, Route, Routes, useLocation } from "react-router-dom";
 import { api, auth } from "./api";
+import { LangSwitch } from "./components/LangSwitch";
+import { Key, useI18n } from "./i18n";
 import { EventDetail } from "./pages/EventDetail";
 import { Health } from "./pages/Health";
 import { History } from "./pages/History";
@@ -24,6 +26,7 @@ function PageFade({ children }: { children: React.ReactNode }) {
 }
 
 export function App() {
+  const { t } = useI18n();
   const [role, setRole] = useState<string | null>(null);
   const [mustChange, setMustChange] = useState(false);
   const [checked, setChecked] = useState(false);
@@ -36,16 +39,17 @@ export function App() {
       .finally(() => setChecked(true));
     return () => window.removeEventListener("lpr:unauthorized", out);
   }, []);
-  if (!checked) return <div className="state" role="status">Loading…</div>;
+  if (!checked) return <div className="state" role="status">{t("common.loading")}</div>;
   if (!role) return <Login onDone={(s) => { setRole(s.role); setMustChange(s.mustChange); }} />;
   if (mustChange) return <ChangePassword onDone={() => setMustChange(false)} />;
-  const links: [string, string][] = [["/", "Overview"], ["/live", "Live"], ["/history", "History"], ["/lists", "Lists"], ["/health", "System health"], ["/settings", "Settings"]];
+  const links: [string, Key][] = [["/", "nav.overview"], ["/live", "nav.live"], ["/history", "nav.history"], ["/lists", "nav.lists"], ["/health", "nav.health"], ["/settings", "nav.settings"]];
   return (
     <div className="shell">
-      <nav className="side raised" aria-label="Main">
-        <strong style={{ padding: "6px 14px 12px" }}>LPR · Edge</strong>
-        {links.map(([to, label]) => <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>{label}</NavLink>)}
-        <button type="button" onClick={() => { auth.set(null); setRole(null); }} style={{ marginTop: 12 }}>Sign out</button>
+      <nav className="side raised" aria-label={t("nav.main")}>
+        <strong style={{ padding: "6px 14px 12px" }}>{t("app.brand")}</strong>
+        {links.map(([to, label]) => <NavLink key={to} to={to} end={to === "/"} className={({ isActive }) => (isActive ? "active" : "")}>{t(label)}</NavLink>)}
+        <button type="button" onClick={() => { auth.set(null); setRole(null); }} style={{ marginTop: 12 }}>{t("nav.signout")}</button>
+        <LangSwitch />
       </nav>
       <main>
         <PageFade>
@@ -57,7 +61,7 @@ export function App() {
           <Route path="/events/:id" element={<EventDetail role={role} />} />
           <Route path="/health" element={<Health />} />
           <Route path="/settings" element={<Settings role={role} onTheme={applyTheme} />} />
-          <Route path="*" element={<div className="state">Page not found.</div>} />
+          <Route path="*" element={<div className="state">{t("common.notFound")}</div>} />
         </Routes>
         </PageFade>
       </main>

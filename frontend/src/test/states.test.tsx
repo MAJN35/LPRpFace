@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
+import { render } from "./render";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -75,7 +76,7 @@ describe("History", () => {
     mockFetch(() => ({ body: { items: [EV], total: 1, limit: 25, offset: 0 } }));
     render(<MemoryRouter><History /></MemoryRouter>);
     expect(await screen.findByText("12 Be 345 | 67")).toBeInTheDocument();
-    await userEvent.type(screen.getByLabelText("Plate"), "ب۳۴۵");
+    await userEvent.type(screen.getByLabelText("Free-text search (any plate form)"), "ب۳۴۵");
     await userEvent.click(screen.getByRole("button", { name: "Search" }));
     await waitFor(() => expect(vi.mocked(fetch).mock.calls.some(([u]) => String(u).includes("q=%D8%A8%DB%B3%DB%B4%DB%B5"))).toBe(true));
   });

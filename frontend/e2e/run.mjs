@@ -48,6 +48,8 @@ const shot = async (name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS
 const text = () => page.evaluate(() => document.body.innerText);
 try {
   await page.goto(URL_, { waitUntil: "networkidle0" });
+  const htmlLang = await page.evaluate(() => [document.documentElement.lang, document.documentElement.dir].join(" "));
+  check(htmlLang === "fa rtl", `Persian is the default language (html lang/dir: ${htmlLang})`);
   await shot("login");
   // Sign in; the bootstrap admin is forced to change its password first (E2E_NEW_PASSWORD), and later runs sign in
   // with that new password.
@@ -56,9 +58,9 @@ try {
     await page.type("input[autocomplete=username]", process.env.ADMIN_USERNAME ?? "admin");
     await page.type("input[type=password]", pw);
     await page.click("button[type=submit]");
-    await page.waitForFunction(() => document.querySelector("nav.side") || document.querySelector("form[aria-label='Change password']")
+    await page.waitForFunction(() => document.querySelector("nav.side") || document.querySelector("input[autocomplete=new-password]")
       || document.querySelector("[role=alert]"), { timeout: 15000 });
-    return page.evaluate(() => document.querySelector("nav.side") ? "app" : document.querySelector("form[aria-label='Change password']") ? "change" : "error");
+    return page.evaluate(() => document.querySelector("nav.side") ? "app" : document.querySelector("input[autocomplete=new-password]") ? "change" : "error");
   };
   let state = await signIn(process.env.ADMIN_PASSWORD ?? "");
   if (state === "error") state = await signIn(process.env.E2E_NEW_PASSWORD ?? "");
@@ -72,6 +74,59 @@ try {
     state = "app";
   }
   check(state === "app", "login");
+  await page.waitForFunction(() => document.body.innerText.includes("آخرین پلاک‌ها"));
+  check(true, "dashboard in Persian after sign-in");
+
+  // Persian plate search on the realistic plate editor (demo plates only)
+  const slot = (name) => `button[role=combobox][aria-label='${name}']`;
+  // Real keydown events with the typed character as `key`, as a Persian keyboard sends them (puppeteer's type() sends
+  // characters outside the US layout as text input without keydown).
+  const keys = (str) => page.evaluate((str) => { for (const k of str) document.activeElement.dispatchEvent(
+    new KeyboardEvent("keydown", { key: k, bubbles: true, cancelable: true })); }, str);
+  const searchFa = async () => {
+    await page.evaluate(() => [...document.querySelectorAll("form[role=search] button")].find((b) => b.textContent === "جستجو").click());
+    await new Promise((r) => setTimeout(r, 300));
+    await page.waitForFunction(() => !document.querySelector("[aria-busy=true]"), { timeout: 10000 });
+  };
+  await page.goto(`${URL_}/history?camera_id=${cam}`, { waitUntil: "networkidle0" });
+  await page.focus(slot("رقم ۱"));
+  await keys("۶3ل");                       // Persian and Western digits, Persian letter
+  await searchFa();
+  await page.waitForFunction(() => document.body.innerText.includes("63 Lam 209 | 11"), { timeout: 10000 });
+  let t0 = await text();
+  check(t0.includes("63 Lam 209 | 11") && !t0.includes("27 Jim 814 | 55"), "plate search (partial): typed ۶3ل on the plate finds only 63 Lam 209 | 11");
+  const order = await page.$eval("tbody .lp", (el) => [getComputedStyle(el).direction, el.innerText.replace(/\s+/g, "")]);
+  check(order[0] === "ltr" && order[1].indexOf("۶۳") < order[1].indexOf("ل"), "result drawn as a realistic plate in physical left-to-right order");
+  await shot("history_fa");
+  await page.click("[role=radio][aria-checked=false]");    // -> exact
+  await searchFa();
+  t0 = await text();
+  check(t0.includes("جستجوی دقیق به همه خانه‌ها نیاز دارد"), "exact search with empty positions is refused with a Persian message");
+  await page.focus(slot("رقم ۳"));
+  await keys("20911");
+  await searchFa();
+  await page.waitForFunction(() => document.body.innerText.includes("63 Lam 209 | 11"), { timeout: 10000 });
+  check((await text()).includes("1 رویداد") || (await text()).includes("۱ رویداد"), "plate search (exact) finds exactly one event");
+  await page.focus(slot("رقم ۱"));
+  await page.keyboard.press("Backspace");
+  await keys("ب");
+  t0 = await text();
+  check(t0.includes("این خانه فقط رقم می‌پذیرد"), "a letter in a digit position is rejected in Persian");
+  await page.select("form[role=search] select", "freezone");
+  await page.waitForSelector(slot("رقم ۵"));
+  const zoneSel = await page.$$("form[role=search] .plate-search-top select");
+  await zoneSel[1].select("QESHM");
+  await searchFa();
+  await page.waitForFunction(() => document.body.innerText.includes("88420"), { timeout: 10000 });
+  t0 = await text();
+  check(t0.includes("88420") && !t0.includes("63 Lam 209 | 11"), "free-zone search by zone (Qeshm)");
+  await shot("history_freezone_fa");
+
+  // the rest in English (language switch, remembered)
+  await page.evaluate(() => [...document.querySelectorAll("nav.side button")].find((b) => b.textContent === "English").click());
+  await page.goto(URL_, { waitUntil: "networkidle0" });
+  const htmlEn = await page.evaluate(() => [document.documentElement.lang, document.documentElement.dir, localStorage.getItem("lpr.lang")].join(" "));
+  check(htmlEn === "en ltr en", `language switch to English is remembered (${htmlEn})`);
   await page.waitForFunction(() => document.body.innerText.includes("Recent plates"));
   await new Promise((r) => setTimeout(r, 1500));
   // real API data: the recent table has rows (with a live camera the newest rows are camera events, not demo plates)
@@ -80,14 +135,15 @@ try {
   await shot("overview");
 
   await page.goto(`${URL_}/history?`, { waitUntil: "networkidle0" });
-  await page.type("form[role=search] input", "ل۲۰۹");
-  await page.click("button[type=submit]");
+  await page.click("form[role=search] details summary");
+  await page.type("form[role=search] details input", "ل۲۰۹");
+  await page.click("form[role=search] button[type=submit]");
   await page.waitForFunction(() => document.body.innerText.includes("63 Lam 209 | 11") && !document.body.innerText.includes("27 Jim 814 | 55")
     && !document.querySelector("[aria-busy=true]"), { timeout: 10000 });
   const t = await text();
   check(t.includes("63 Lam 209 | 11") && !t.includes("27 Jim 814 | 55"), "history: Persian partial search finds only the matching plate");
-  const dir = await page.$eval(".plate .fa", (el) => getComputedStyle(el).direction);
-  check(dir === "rtl", "Persian plate rendered right-to-left");
+  const dir = await page.$eval("tbody .lp", (el) => getComputedStyle(el).direction);
+  check(dir === "ltr", "plate drawn in its physical left-to-right order inside the page");
   await page.evaluate(() => [...document.querySelectorAll("form[role=search] button")].find((b) => b.textContent === "Clear").click());
   await page.waitForFunction(() => document.body.innerText.includes("27 Jim 814 | 55"));
   await shot("history");

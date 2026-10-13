@@ -22,6 +22,7 @@ from ..config import settings
 from ..db import SessionLocal, get_db
 from ..live import broadcaster
 from ..models import AuditLog, Event, Person, User
+from ..plate_search import SlotError, slot_condition
 from .lists import resolve_status
 from ..security import (admin, any_role, create_token, hash_password, ingest_key, operator, user_from_token,
                         verify_password)
@@ -133,8 +134,17 @@ async def ingest(body: schemas.EventIn, db: AsyncSession = Depends(get_db)):
 
 
 # --- events ------------------------------------------------------------------------------------------------------------
-def _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q, list_status=None):
+def _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q, list_status=None,
+             slots=None, layout="standard", match="partial"):
     conds = []
+    if slots is not None:
+        try:
+            cond = slot_condition(slots, layout, match)
+        except SlotError as e:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(e))
+        if cond:
+            op, val = cond
+            conds.append(Event.plate_key == val if op == "eq" else Event.plate_key.like(val))
     if list_status:
         conds.append(Event.list_status == list_status)
     if camera_id:
@@ -170,18 +180,23 @@ async def list_events(camera_id: Optional[str] = None, since: Optional[dt.dateti
                       model_version: Optional[str] = None, event_type: Optional[str] = None,
                       q: Optional[str] = Query(None, max_length=64),
                       list_status: Optional[str] = Query(None, pattern="^(whitelist|blocklist|unknown)$"),
+                      slots: Optional[str] = Query(None, max_length=80,
+                                                   description="plate positions, comma-separated, empty = any"),
+                      layout: str = Query("standard", pattern="^(standard|freezone|protocol)$"),
+                      match: str = Query("partial", pattern="^(exact|partial)$"),
                       limit: int = Query(50, ge=1, le=200),
                       offset: int = Query(0, ge=0), user: User = Depends(any_role),
                       db: AsyncSession = Depends(get_db)):
-    where = _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q, list_status)
+    where = _filters(camera_id, since, until, plate_type, zone, is_valid, model_version, event_type, q, list_status,
+                     slots, layout, match)
     base = select(Event)
     count = select(func.count()).select_from(Event)
     if where is not None:
         base, count = base.where(where), count.where(where)
     total = (await db.execute(count)).scalar_one()
     rows = (await db.execute(base.order_by(Event.ts.desc(), Event.event_id).limit(limit).offset(offset))).scalars()
-    if q:
-        db.add(AuditLog(username=user.username, action="search", target=q[:64]))
+    if q or slots:
+        db.add(AuditLog(username=user.username, action="search", target=(q or f"{layout}:{match}:{slots}")[:64]))
         await db.commit()
     return schemas.Page(items=[_out(r) for r in rows], total=total, limit=limit, offset=offset)
 
@@ -189,8 +204,12 @@ async def list_events(camera_id: Optional[str] = None, since: Optional[dt.dateti
 @router.get("/events/export.csv", tags=["events"])
 async def export_csv(camera_id: Optional[str] = None, since: Optional[dt.datetime] = Query(None, alias="from"),
                      until: Optional[dt.datetime] = Query(None, alias="to"), q: Optional[str] = None,
+                     plate_type: Optional[str] = None, zone: Optional[str] = None,
+                     slots: Optional[str] = Query(None, max_length=80),
+                     layout: str = Query("standard", pattern="^(standard|freezone|protocol)$"),
+                     match: str = Query("partial", pattern="^(exact|partial)$"),
                      user: User = Depends(operator), db: AsyncSession = Depends(get_db)):
-    where = _filters(camera_id, since, until, None, None, None, None, None, q)
+    where = _filters(camera_id, since, until, plate_type, zone, None, None, None, q, None, slots, layout, match)
     stmt = select(Event).order_by(Event.ts.desc()).limit(100000)
     if where is not None:
         stmt = stmt.where(where)
