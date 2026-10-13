@@ -1,0 +1,32 @@
+# M4 runtime test 2026-10-13T17:22:47Z
+mediamtx (test RTSP server) up
+## 1. three sources at start (file loop + RTSP H.264 + broken RTSP), after 60 s
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=0; cam-01: live fps_in=26.5 frames=536 reconnects=0; video-loop: running fps_in=5.0 frames=75 reconnects=0
+   worker: {'frames': 36, 'reads': 31, 'events': 4, 'dedup_suppressed': 17, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 36, 'worker_dropped': 0}
+## 1b. live view (a viewer opens cam-01 raw and cam-01 with detections)
+   cam-01-osd: HLS playlist HTTP 200 | stream: h264,1280,720,0/0
+   cam-01: HLS playlist HTTP 200 | stream: h264,1920,1080,25/1
+   without login through nginx: HTTP 401
+   cam-01 live: {'publishing': True, 'frames_published': 139, 'osd_active': True, 'osd_path': 'cam-01-osd', 'raw_path': 'cam-01'}
+## 2. runtime add cam-02 (RTSP H.265 2560x1440)
+   added
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: reconnecting fps_in=0.0 frames=0 reconnects=3; cam-01: live fps_in=25.0 frames=4292 reconnects=0; cam-02: live fps_in=20.0 frames=1211 reconnects=0; video-loop: running fps_in=2.5 frames=635 reconnects=0
+   worker: {'frames': 546, 'reads': 405, 'events': 18, 'dedup_suppressed': 301, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 546, 'worker_dropped': 0}
+## 3. runtime remove cam-02
+   removed
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=4; cam-01: live fps_in=25.0 frames=5069 reconnects=0; video-loop: running fps_in=5.0 frames=762 reconnects=0
+   worker: {'frames': 656, 'reads': 492, 'events': 20, 'dedup_suppressed': 375, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 656, 'worker_dropped': 0}
+## 4. RTSP disconnect: stop the RTSP server for 40 s
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=5; cam-01: reconnecting fps_in=0.0 frames=5184 reconnects=0; video-loop: running fps_in=8.5 frames=1122 reconnects=0
+   worker: {'frames': 812, 'reads': 604, 'events': 23, 'dedup_suppressed': 404, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 812, 'worker_dropped': 0}
+   RTSP server back
+   api-images: idle fps_in=0.0 frames=0 reconnects=0; broken: connecting fps_in=0.0 frames=0 reconnects=6; cam-01: live fps_in=25.0 frames=6843 reconnects=1; video-loop: running fps_in=4.0 frames=1670 reconnects=0
+   worker: {'frames': 1141, 'reads': 856, 'events': 35, 'dedup_suppressed': 548, 'errors': 0, 'queue': 0} pipeline: {'frames_inferred': 1141, 'worker_dropped': 0}
+## 5. image job through the control API
+   job done events 1 plate read
+## 6. stop (SIGTERM)
+   2026-10-13 17:30:12,693 INFO lpr: final stats: {'frames': 1206, 'reads': 900, 'events': 37, 'dedup_suppressed': 584, 'small_plates_skipped': 0, 'invalid_events': 0, 'errors': 0, 'queue': 0, 'open_tracks': 0, 'emitter': {'emitted': 37, 'dropped_queue_full': 0, 'jsonl_ok': 37, 'jsonl_failed': 0}}
+## events per source: {('video-loop', 'plate.recognized'): 18, ('cam-01', 'plate.recognized'): 13, ('cam-02', 'plate.recognized'): 5, ('api-images', 'plate.recognized.image'): 1}
+   with crop: 36 of 37 | valid: 37 | source URIs redacted: True
+# done
+guarded run finished: exit 0, lowest MemAvailable 786 MB (limit 800 MB)

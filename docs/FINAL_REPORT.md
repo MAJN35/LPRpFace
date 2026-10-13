@@ -149,8 +149,8 @@ image job source is active. All test data was wiped before this deployment.
 | RTMP/HTTP/HLS sources | not tested | a stream URL if you use one |
 | Real camera URLs/credentials | placeholders | fill `deploy/sources.yaml` (hosts) and `deploy/.env` (`CAM01_USER` …), set `enabled: true` |
 | 8–10 fps per camera | **not reachable with YOLO12x at 960 on Xavier NX mode 8** | accept ~1–3.5 fps per camera (1–2 cameras), or provide a smaller model (section 4), or a faster Jetson |
-| Face-mask on the output stream | implemented, counted (`faces_masked`), not visually verified (private frames are never viewed) | look at the annotated stream yourself if you enable `LPR_OSD=1` + `LPR_OUTPUT_RTSP` |
-| Live video in the browser | not built (your decision: not now) | — |
+| Face-mask on the output stream | implemented, counted (`faces_masked`), not visually verified (private frames are never viewed) | look at the Live page → Detections |
+| Live video in the browser | **built** after your request: Live page, raw stream (network cameras) + detection stream (one camera at a time), behind the login | look at the face mask on the detection view yourself |
 | Swapfile | not possible (SD card only) | an NVMe/SSD if wanted |
 | Validation of Kaf, Gaf, Fe, D, S, protocol, Ze, free zone | synthetic only; no data for Se, Za, Pe (A.5) | real labelled images of these plates |
 | AGPL-3.0 (Ultralytics) | flagged in README | legal review before any distribution |

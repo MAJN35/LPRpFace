@@ -7,6 +7,7 @@
   POST   /sources/{id}/enable|disable  enable/disable without forgetting the config
   POST   /images?name=<file name>      image job: raw JPEG/PNG body (<= 10 MB) -> {"job_id"}
   GET    /images/{job_id}              {"status": "queued|done|error", "events": [...]}
+  POST   /live/{id}/start|stop         detection stream on demand (called by the media gateway)
 """
 from __future__ import annotations
 
@@ -28,8 +29,8 @@ _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 class ControlServer:
-    def __init__(self, app, host: str, port: int, jobs_dir: str, info: Dict[str, Any]):
-        self.app, self.info = app, info
+    def __init__(self, app, host: str, port: int, jobs_dir: str, info: Dict[str, Any], store=None):
+        self.app, self.info, self.store = app, info, store
         self.jobs_dir = Path(jobs_dir)
         self.jobs_dir.mkdir(parents=True, exist_ok=True)
         self.jobs: Dict[str, str] = {}   # job id -> image path
@@ -84,17 +85,25 @@ class ControlServer:
                 try:
                     if p == "/sources":
                         body = self._json()
-                        src = parse_source(body or {}, {}, {})
+                        src = parse_source(body or {}, {}, dict(__import__("os").environ))
                         srv.app.add_source(src)
+                        if srv.store is not None:
+                            srv.store.added(body)
                         return self._send(201, _public(src))
                     m = re.fullmatch(r"/sources/([^/]+)/(enable|disable)", p)
                     if m:
                         if m.group(1) not in srv.app.configs:
                             return self._send(404, {"error": "unknown source"})
                         srv.app.set_enabled(m.group(1), m.group(2) == "enable")
+                        if srv.store is not None:
+                            srv.store.enabled(m.group(1), m.group(2) == "enable")
                         return self._send(200, {"id": m.group(1), "enabled": m.group(2) == "enable"})
                     if p == "/images":
                         return self._image(qs)
+                    m = re.fullmatch(r"/live/([^/]+)/(start|stop)", p)
+                    if m:   # called by the media gateway when a viewer opens / leaves <id>-osd
+                        fn = srv.app.live_start if m.group(2) == "start" else srv.app.live_stop
+                        return self._send(200, {"id": m.group(1), "state": fn(m.group(1))})
                 except (ConfigError, ValueError) as e:
                     return self._send(400, {"error": str(e)})
                 except KeyError as e:
@@ -106,6 +115,8 @@ class ControlServer:
                 if not m or m.group(1) not in srv.app.configs:
                     return self._send(404, {"error": "unknown source"})
                 srv.app.remove_source(m.group(1))
+                if srv.store is not None:
+                    srv.store.removed(m.group(1))
                 return self._send(200, {"id": m.group(1), "removed": True})
 
             def _image(self, qs):

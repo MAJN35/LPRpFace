@@ -299,3 +299,23 @@ Format: date, decision, reason, alternatives, source.
   `target_fps_per_camera` 8) shown on the System health page.
 - **Deployment:** test volumes wiped; fresh stack with `deploy/sources.yaml` (camera placeholders disabled),
   `FRONTEND_BIND=0.0.0.0`, bootstrap admin forced to change its password.
+
+## 2026-10-13: Live view in the browser (raw + detections)
+
+- **Decision:** built at the user's request ("add live OSD for detections and also add live view (raw and with OSD)"),
+  which replaces the earlier "live-video gateway: not now".
+- **Gateway:** mediamtx 1.12.3 (`bluenviron/mediamtx:1.12.3-ffmpeg`, digest pinned), internal only, 512 MB limit. The
+  browser gets LL-HLS through nginx `/live/`, guarded by `auth_request` → `GET /api/v1/auth/check`; no new port.
+  Browsers cannot play RTSP; WebRTC would need UDP ports, which LL-HLS over the existing port does not.
+- **Raw:** DeepStream registers each network camera as an on-demand mediamtx path (pulled only while watched).
+  USB, CSI and files have no raw view.
+- **Detections:** one camera at a time. valve → `nvmultistreamtiler show-source` → `nvdsosd` → crop → NVENC H.264 →
+  appsink → separate publisher pipeline (`rtspclientsink`), so a gateway failure never stops inference. It starts on
+  the first viewer (mediamtx `runOnDemand` → control API `/live/<id>/start`) and stops 15 s after the last viewer.
+- **Alternatives rejected (measured):**
+  - `nvstreamdemux` cannot add src pads after the pipeline started in DS 6.3.
+  - A tee per camera with its own encoder stalled the muxer buffer pool, and the watchdog fired at 786 MB free.
+- **Runtime sources persist:** sources added through the API are kept in `/data/sources.runtime.json` (mode 600),
+  which keeps a camera added in the dashboard across restarts.
+- **Pipeline start:** waits at most 10 s for PLAYING. Before, it blocked forever when a source had no data yet,
+  and the control API never answered.

@@ -45,6 +45,12 @@ async def me(user: User = Depends(any_role)):
                            must_change_password=user.must_change_password)
 
 
+@router.get("/auth/check", status_code=204, tags=["auth"])
+async def auth_check(_: User = Depends(any_role)):
+    """204 for any signed-in user (nginx auth_request for the live video at /live/)."""
+    return None
+
+
 @router.post("/auth/change-password", response_model=schemas.UserOut, tags=["auth"])
 async def change_password(body: schemas.PasswordChange, user: User = Depends(any_role),
                           db: AsyncSession = Depends(get_db)):

@@ -46,3 +46,11 @@ def test_change_rules_and_unlock(client):
     assert client.get("/api/v1/events", headers=h).status_code == 200      # same token works after the change
     assert client.post("/api/v1/auth/login", data={"username": "fresh-admin2", "password": "initial-password-1"}).status_code == 401
     assert client.post("/api/v1/auth/login", data={"username": "fresh-admin2", "password": "brand-new-password-1"}).status_code == 200
+
+
+def test_auth_check_for_live_video(client, auth):
+    assert client.get("/api/v1/auth/check", headers=auth).status_code == 204
+    assert client.get("/api/v1/auth/check").status_code == 401
+    _user("fresh-admin3", "initial-password-1", True)
+    tok = client.post("/api/v1/auth/login", data={"username": "fresh-admin3", "password": "initial-password-1"}).json()
+    assert client.get("/api/v1/auth/check", headers={"Authorization": f"Bearer {tok['access_token']}"}).status_code == 403

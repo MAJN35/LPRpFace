@@ -10,6 +10,7 @@
 set -uo pipefail
 logdir="${1:?log dir}"; shift
 mkdir -p "$logdir"
+rm -f "$logdir/mem.log" "$logdir/tegrastats.log"   # every run starts with fresh logs
 min="${MIN_AVAIL_MB:-800}"
 if [[ -n "$(docker ps -q --filter label=lpr.guarded=1)" ]]; then
   echo "another guarded run is active; one pipeline at a time" >&2; exit 98

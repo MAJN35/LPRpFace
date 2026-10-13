@@ -32,8 +32,9 @@ services:
       LPR_CROPS_DIR: /data/crops
       LPR_JOBS_DIR: /data/jobs
       LPR_INTERVAL: ${LPR_INTERVAL:-0}
-      LPR_OSD: ${LPR_OSD:-0}
-      LPR_OUTPUT_RTSP: ${LPR_OUTPUT_RTSP:-}
+      LPR_LIVE: ${LPR_LIVE:-1}                       # live view: raw camera + detection overlay through "media"
+      LPR_MEDIA_RTSP: rtsp://media:8554
+      LPR_MEDIA_API: http://media:9997
       LPR_DEDUP_S: ${LPR_DEDUP_S:-30}
       LPR_MAX_CAMERAS: ${LPR_MAX_CAMERAS:-4}                 # measured memory-safe maximum (docs/benchmark.md)
       LPR_MAX_CAMERAS_AT_TARGET: ${LPR_MAX_CAMERAS_AT_TARGET:-0}   # cameras at >= LPR_TARGET_FPS inferred fps
@@ -63,6 +64,13 @@ services:
       start_period: 900s        # first start builds the TensorRT engine (~40-60 min on Xavier NX)
     depends_on:
       kafka-init: {condition: service_completed_successfully}
+
+  media:                          # live-video gateway (raw + OSD streams); internal only, HLS via nginx /live/
+    image: bluenviron/mediamtx:1.12.3-ffmpeg@sha256:f4bbb3af99b7d9a812499f69f6dd3de5ac54339a788c1c5e45dc36f9c1dffbd3
+    restart: unless-stopped
+    logging: *logging
+    mem_limit: 512m
+    volumes: [./mediamtx.yml:/mediamtx.yml:ro]
 
   kafka:
     image: apache/kafka:3.9.1@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed

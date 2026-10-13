@@ -30,14 +30,31 @@ print('   worker:', {k: h['worker'][k] for k in ('frames','reads','events','dedu
 echo "# M4 runtime test $(date -u +%FT%TZ)"
 $C up -d mediamtx >/dev/null 2>&1 && echo "mediamtx (test RTSP server) up"
 sleep 5
-LPR_DOCKER_NETWORK=lpr LPR_DOCKER_ARGS="--name lpr-ds-test" deepstream/run.sh env LPR_EVENT_SINKS=jsonl \
+LPR_DOCKER_NETWORK=lpr LPR_DOCKER_ARGS="--name lpr-ds-test --network-alias deepstream" deepstream/run.sh env LPR_EVENT_SINKS=jsonl \
   LPR_SOURCES_FILE=/work/out/m4rt_sources.yaml ENGINE_DIR=/engines META_DIR=/work/models/v2 ONNX_DIR=/work/models/v2/export \
   LPR_EVENTS_JSONL=/work/$OUT/events.jsonl LPR_CROPS_DIR=/work/$OUT/crops LPR_JOBS_DIR=/work/$OUT/jobs \
-  LPR_CONTROL_HOST=0.0.0.0 LPR_IMAGE_API=1 python3 -m app.main > "$OUT/app.log" 2>&1 &
+  LPR_CONTROL_HOST=0.0.0.0 LPR_IMAGE_API=1 LPR_RUNTIME_SOURCES=/work/$OUT/sources.runtime.json LPR_LIVE=${LPR_LIVE:-0} LPR_MEDIA_RTSP=rtsp://media:8554 LPR_MEDIA_API=http://media:9997 \
+  python3 -m app.main > "$OUT/app.log" 2>&1 &
 APP=$!
 for i in $(seq 1 60); do ctl GET /health >/dev/null 2>&1 && break; sleep 2; done
 sleep 60
 echo "## 1. three sources at start (file loop + RTSP H.264 + broken RTSP), after 60 s"; status
+if [[ "${LPR_LIVE:-0}" == "1" ]]; then
+  echo "## 1b. live view (a viewer opens cam-01 raw and cam-01 with detections)"
+  docker compose -f deploy/compose.yaml --env-file deploy/.env up -d media >/dev/null 2>&1
+  for path in cam-01-osd cam-01; do
+    code=000
+    for i in $(seq 1 12); do
+      code=$(docker exec lpr-ds-test curl -s -o /dev/null -w '%{http_code}' "http://media:8888/$path/index.m3u8")
+      [[ $code == 200 ]] && break; sleep 3
+    done
+    info=$(docker run --rm --network lpr --entrypoint ffprobe bluenviron/mediamtx:1.12.3-ffmpeg@sha256:f4bbb3af99b7d9a812499f69f6dd3de5ac54339a788c1c5e45dc36f9c1dffbd3 \
+      -v error -rtsp_transport tcp -select_streams v:0 -show_entries stream=codec_name,width,height,avg_frame_rate -of csv=p=0 "rtsp://media:8554/$path" 2>&1 | head -1)
+    echo "   $path: HLS playlist HTTP $code | stream: $info"
+  done
+  echo "   without login through nginx: HTTP $(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/live/cam-01/index.m3u8)"
+  ctl GET /health | python3 -c "import json,sys; h=json.load(sys.stdin); print('   cam-01 live:', h['sources']['cam-01'].get('live'))"
+fi
 echo "## 2. runtime add cam-02 (RTSP H.265 2560x1440)"
 ctl POST /sources '{"id": "cam-02", "type": "rtsp", "uri": "rtsp://mediamtx:8554/cam-02", "max_fps": 10}' >/dev/null && echo "   added"
 sleep 60; status

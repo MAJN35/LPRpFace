@@ -180,10 +180,10 @@ Decisions needed: none (all decided by the user on 2026-10-13)
 
 1. USB and CSI cameras: not attached; configs and steps in the M4 report.
 2. jetson_clocks: not used (user decision).
-3. Live video in the browser: not now (user decision).
+3. Live video in the browser: done 2026-10-13 at the user's request (raw + detection view, see decisions.md); LL-HLS part-duration warnings mean iOS Safari may stall on the ~3.5 fps detection stream.
 4. Dashboard on the LAN: done (`FRONTEND_BIND=0.0.0.0`, forced admin password change).
 5. Face-based person lists: stay forbidden (user decision).
-6b. Face mask on the output stream: implemented and counted, not visually verified.
+6b. Face mask on the live detection stream: implemented and counted, not visually verified by me (private frames are never viewed); check it in the Live page.
 6c. 8–10 fps per camera: not reachable with YOLO12x at 960 on Xavier NX mode 8 (see FINAL_REPORT section 1, 4).
 6. Swapfile: not possible (no NVMe/SSD).
 7. Real camera URLs/credentials: placeholders in `deploy/sources.yaml` / `deploy/.env`.

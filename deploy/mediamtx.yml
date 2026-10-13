@@ -1,0 +1,36 @@
+# Live-video gateway (mediamtx 1.12.3), internal network only (no published ports). The browser reaches HLS
+# through nginx (/live/, behind the dashboard login).
+#   <id>      raw camera stream: registered by DeepStream via the API, pulled from the camera only while watched
+#   <id>-osd  detection overlay published by DeepStream (H.264)
+logLevel: warn
+rtsp: yes
+rtspAddress: :8554
+rtspTransports: [tcp]
+hls: yes
+hlsAddress: :8888
+hlsVariant: lowLatency
+hlsSegmentCount: 7
+hlsSegmentDuration: 1s
+hlsPartDuration: 200ms
+hlsAllowOrigin: ""
+rtmp: no
+webrtc: no
+srt: no
+api: yes
+apiAddress: :9997
+metrics: no
+playback: no
+authInternalUsers:
+  - user: any
+    pass:
+    ips: []
+    permissions: [{action: publish}, {action: read}, {action: playback}, {action: api}]
+paths:
+  # Detection stream on demand: the first viewer of <id>-osd makes DeepStream show that camera; 15 s after the last
+  # viewer leaves it stops. One detection stream at a time (memory); another camera answers "busy" meanwhile.
+  "~^(.+)-osd$":
+    runOnDemand: sh -c 'wget -q -O- --post-data= http://deepstream:8090/live/$G1/start; while true; do sleep 3600; done'
+    runOnDemandStartTimeout: 20s
+    runOnDemandCloseAfter: 15s
+    runOnUnDemand: wget -q -O- --post-data= http://deepstream:8090/live/$G1/stop
+  all_others:

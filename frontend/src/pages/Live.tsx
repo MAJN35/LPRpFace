@@ -1,11 +1,49 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { EventSummary, LiveState, connectLive } from "../api";
-import { ListBadge, Plate, Validity, fmtTime } from "../components/ui";
+import { Camera, EventSummary, LiveState, connectLive } from "../api";
+import { LiveVideo } from "../components/LiveVideo";
+import { ListBadge, Plate, StateView, Validity, fmtTime, useApi } from "../components/ui";
+
+const RAW_TYPES = ["rtsp", "rtmp", "http", "hls"];
+
+// One live view at a time: the board can encode one detection stream (memory), so the page shows the selected
+// camera with detections (OSD) or its raw stream.
+function LiveView({ cams }: { cams: Camera[] }) {
+  const [camId, setCamId] = useState<string>(cams[0]?.id ?? "");
+  const [view, setView] = useState<"osd" | "raw">("osd");
+  const cam = cams.find((c) => c.id === camId) ?? cams[0];
+  if (!cam) return null;
+  const canRaw = RAW_TYPES.includes(cam.type);
+  const shown = view === "raw" && canRaw ? "raw" : "osd";
+  const path = shown === "osd" ? `${cam.id}-osd` : cam.id;
+  return (
+    <section className="card raised" aria-label="Live view">
+      <div className="row" style={{ justifyContent: "space-between", marginBottom: 10 }}>
+        <label className="row" style={{ display: "flex", alignItems: "center", gap: 8 }}>Camera
+          <select className="inset" value={cam.id} onChange={(e) => setCamId(e.target.value)}>
+            {cams.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </label>
+        <div className="row" role="group" aria-label="View" style={{ gap: 6 }}>
+          <button type="button" aria-pressed={shown === "osd"} onClick={() => setView("osd")}>Detections</button>
+          <button type="button" aria-pressed={shown === "raw"} disabled={!canRaw}
+            title={canRaw ? "" : "Raw view is available for network cameras"} onClick={() => setView("raw")}>Raw</button>
+        </div>
+      </div>
+      <LiveVideo key={path} path={path} label={`${cam.name} ${shown === "osd" ? "with detections" : "raw"}`} />
+      <p className="muted" style={{ margin: "8px 0 0", fontSize: 13 }}>
+        {shown === "osd" ? "Detections are drawn on the frames the model processed (about 3.5 per second in total on this device). One detection view at a time."
+          : "Original camera stream (H.265 cameras play only in browsers with HEVC support)."}
+      </p>
+    </section>
+  );
+}
 
 export function Live({ connect = connectLive }: { connect?: typeof connectLive }) {
   const [events, setEvents] = useState<EventSummary[]>([]);
   const [state, setState] = useState<LiveState>("connecting");
+  const cams = useApi<Camera[]>("/cameras", 15000);
+  const videoCams = (cams.data ?? []).filter((c) => c.enabled && !["image", "image_folder", "image_job"].includes(c.type));
   const [alert, setAlert] = useState<EventSummary | null>(null);
   const [arrived, setArrived] = useState<Set<string>>(new Set());   // rows that arrived live get a brief highlight
   useEffect(() => connect((e) => {
@@ -15,7 +53,11 @@ export function Live({ connect = connectLive }: { connect?: typeof connectLive }
   return (
     <>
       <h1>Live</h1>
-      <p className="sub">Plates as they are recognized. Live video needs an approved WebRTC/HLS gateway (not enabled).</p>
+      <p className="sub">Live camera views and plates as they are recognized.</p>
+      <StateView hasData={!!cams.data} loading={cams.loading} error={null} empty={!videoCams.length}
+        emptyText="No enabled video sources. Add or enable a camera in Settings.">
+        <LiveView cams={videoCams} />
+      </StateView>
       {state !== "open" && (
         <div className="banner inset" role="status">
           <span className="dot pulse" aria-hidden="true" style={{ background: state === "connecting" ? "var(--warn)" : "var(--bad)" }} />

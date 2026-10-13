@@ -35,6 +35,7 @@ from lpr_reader import classes as C  # noqa: E402
 from lpr_reader.decode import iou_matrix  # noqa: E402
 
 from .config import Source  # noqa: E402
+from .live import LiveOsd, MediaGateway  # noqa: E402
 from .sources import SourceBin  # noqa: E402
 
 log = logging.getLogger("lpr.pipeline")
@@ -59,8 +60,9 @@ class AppConfig:
     mux_height: int = 1920    # (a 16:9 canvas shrank portrait/4:3 images to ~56 % before the letterbox)
     batched_push_timeout_us: int = 40000
     interval: int = 0
-    osd: bool = False                      # draw boxes + Latin plate text, blur faces (output stream)
-    output_rtsp: str = ""                  # e.g. rtsp://127.0.0.1:8554/lpr-out (needs a local RTSP server)
+    live: bool = False                     # live view: one detection stream at a time + raw camera paths
+    media_rtsp: str = "rtsp://media:8554"  # mediamtx RTSP (the detection stream is published as <id>-osd)
+    media_api: str = "http://media:9997"   # mediamtx API (raw camera paths are registered here)
     exit_on_eos: bool = True
     worker_queue: int = 64
 
@@ -90,6 +92,8 @@ class LprPipeline:
         self._next_index = 0
         self._lock = threading.Lock()
         self.best_width: Dict[Tuple[int, int], float] = {}   # (source index, track id) -> best plate width seen
+        self.gateway = MediaGateway(cfg.media_api) if cfg.live else None
+        self.live_osd: Optional[LiveOsd] = None
         self._pending: Dict[Tuple[int, int], FrameItem] = {}  # probe A -> probe B, by (pad index, frame number)
         self.playing_since: Optional[float] = None
         # per source: inferred frames (for fps_out) and recent latencies muxer arrival -> after tracker (ms)
@@ -133,19 +137,19 @@ class LprPipeline:
                                   display_tracking_id=0)
         q3 = self._make("queue", "q-probe")
         chain = [self.mux, q1, self.pgie, q2, self.tracker, q3]
-        if cfg.osd or cfg.output_rtsp:
-            tiler_rows = 2
-            chain += [self._make("nvmultistreamtiler", "tiler", rows=tiler_rows, columns=2, width=1280, height=720),
-                      self._make("nvdsosd", "osd", display_mask=0, process_mode=1)]
-        if cfg.output_rtsp:
-            chain += [self._make("nvvideoconvert", "outconv"),
-                      self._make("capsfilter", "outcaps", caps=Gst.Caps.from_string("video/x-raw(memory:NVMM),format=I420")),
-                      self._make("nvv4l2h264enc", "enc", bitrate=2000000, insert_sps_pps=1, iframeinterval=30),
-                      self._make("h264parse", "outparse"),
-                      self._make("rtspclientsink", "outrtsp", location=cfg.output_rtsp, protocols=4)]
+        if cfg.live:
+            # One detection stream at a time (memory): valve (closed without a viewer) -> tiler showing the selected
+            # source full size -> nvdsosd -> crop/scale -> H.264 -> appsink -> separate publisher (live.LiveOsd).
+            self.live_osd = LiveOsd(self.pipeline, cfg.media_rtsp, cfg.mux_width)
+            chain += self.live_osd.elements
         else:
             sync = any(s.type == "file" and s.realtime for s in self.configs.values())
-            chain.append(self._make("fakesink", "sink", sync=sync, qos=False))
+            # async=false when not synced: the pipeline must reach PLAYING without a first frame (e.g. only the
+            # API image source, idle until an upload); a synced real-time file keeps async prerolling.
+            sink = self._make("fakesink", "sink", sync=sync, qos=False)
+            if not sync:
+                sink.set_property("async", False)
+            chain.append(sink)
         for a, b in zip(chain, chain[1:]):
             if not a.link(b):
                 raise RuntimeError(f"cannot link {a.get_name()} -> {b.get_name()}")
@@ -171,6 +175,8 @@ class LprPipeline:
         st = self.state.setdefault(src.id, {"failures": 0, "reconnects": 0})
         st.update(status="connecting", started_at=time.time(), retry_at=None, frames_in=0, fps_in=0.0, _frames_prev=0)
         self.worker.register(sb)
+        if self.gateway is not None:
+            self.gateway.register_raw(src)
         if self.pipeline.get_state(0)[1] in (Gst.State.PLAYING, Gst.State.PAUSED):
             sb.bin.sync_state_with_parent()
         sb.start_feeder()
@@ -190,6 +196,8 @@ class LprPipeline:
             sink.send_event(Gst.Event.new_flush_stop(False))
             self.mux.release_request_pad(sink)
         self.pipeline.remove(sb.bin)
+        if self.live_osd is not None and self.live_osd.index == idx:
+            self.live_osd.stop()
         self.worker.source_ended(sb)
         log.info("[%s] detached (mux pad %d)", sb.src.id, idx)
         return sb
@@ -203,6 +211,8 @@ class LprPipeline:
         GLib.idle_add(self._idle(self._attach, src))
 
     def remove_source(self, sid: str, forget: bool = True) -> None:
+        if self.gateway is not None:
+            self.gateway.unregister_raw(sid)
         idx = self.by_id.get(sid)
         if idx is not None:
             GLib.idle_add(self._idle(self._detach, idx))
@@ -219,6 +229,25 @@ class LprPipeline:
             GLib.idle_add(self._idle(self._attach, src))
         elif not enabled:
             self.remove_source(sid, forget=False)
+
+    def live_start(self, sid: str) -> str:
+        """A viewer opened <sid>-osd (called by the media gateway). One detection stream at a time."""
+        idx = self.by_id.get(sid)
+        if self.live_osd is None or idx is None:
+            return "unknown"
+        if self.bins[idx].src.is_image:
+            return "not_video"
+        if self.live_osd.index not in (None, idx):
+            return "busy"
+        GLib.idle_add(self._idle(self.live_osd.start, idx, sid))
+        return "starting"
+
+    def live_stop(self, sid: str) -> str:
+        idx = self.by_id.get(sid)
+        if self.live_osd is None or idx is None or self.live_osd.index != idx:
+            return "not_running"
+        GLib.idle_add(self._idle(self.live_osd.stop))
+        return "stopping"
 
     def add_image(self, sid: str, path: str) -> None:
         idx = self.by_id.get(sid)
@@ -362,6 +391,35 @@ class LprPipeline:
                 for k in list(self._pending)[:128]:
                     self._pending.pop(k, None)
 
+    def _style(self, sb, fm) -> None:
+        """Detection-stream look for the shown source: plates = green box + Latin read, characters and labels
+        hidden, faces = opaque mask (privacy); keeps the crop of the stream in step with the source geometry."""
+        l_obj = fm.obj_meta_list
+        while l_obj is not None:
+            om = pyds.NvDsObjectMeta.cast(l_obj.data)
+            l_obj = l_obj.next
+            if om.class_id == C.PLATE_ID:
+                om.rect_params.border_width = 3
+                om.rect_params.border_color.set(0.15, 0.85, 0.35, 1.0)
+                tid = int(om.object_id) if om.object_id != 0xFFFFFFFFFFFFFFFF else -1
+                text = self.worker.osd_text(sb.src.id, tid)
+                om.text_params.display_text = text
+                if text:
+                    om.text_params.font_params.font_size = 14
+                    om.text_params.set_bg_clr = 1
+                    om.text_params.text_bg_clr.set(0.0, 0.0, 0.0, 0.7)
+            elif om.class_id == C.FACE_ID and sb.src.face_blur:
+                self.stats["faces_masked"] = self.stats.get("faces_masked", 0) + 1
+                om.rect_params.has_bg_color = 1
+                om.rect_params.bg_color.set(0.1, 0.1, 0.1, 1.0)
+                om.rect_params.border_width = 0
+                om.text_params.display_text = ""
+            else:
+                om.rect_params.border_width = 0
+                om.text_params.display_text = ""
+        _, _, (cl, ct, cw, ch), scale = self._geometry(sb, fm)
+        self.live_osd.set_geometry(self.cfg.mux_width, self.cfg.mux_height, cw, ch, scale)
+
     def _frame(self, buf, fm):  # probe B
         sb = self.bins.get(fm.pad_index)
         if sb is None:
@@ -370,6 +428,8 @@ class LprPipeline:
         if st is not None and st.get("status") in ("connecting", "reconnecting", "starting"):
             st["status"] = "live" if sb.src.is_live else "running"
             st["failures"] = 0
+        if self.live_osd is not None and self.live_osd.index == fm.pad_index:
+            self._style(sb, fm)
         with self._lock:
             item = self._pending.pop((fm.pad_index, fm.frame_num), None)
         if item is None:  # not an inferred frame (interval) or not seen by probe A
@@ -384,15 +444,6 @@ class LprPipeline:
         while l_obj is not None:
             om = pyds.NvDsObjectMeta.cast(l_obj.data)
             l_obj = l_obj.next
-            if om.class_id == C.FACE_ID and self.cfg.osd and sb.src.face_blur:
-                self.stats["faces_masked"] = self.stats.get("faces_masked", 0) + 1
-                om.rect_params.has_bg_color = 1       # opaque privacy mask on the output stream
-                om.rect_params.bg_color.set(0.1, 0.1, 0.1, 1.0)
-                om.rect_params.border_width = 0
-            elif om.class_id != C.PLATE_ID:
-                if self.cfg.osd:
-                    om.rect_params.border_width = 0
-                continue
             if om.class_id != C.PLATE_ID or om.object_id == 0xFFFFFFFFFFFFFFFF:
                 continue
             r = om.detector_bbox_info.org_bbox_coords
@@ -406,8 +457,6 @@ class LprPipeline:
                     best, best_iou = d, iou
             if best is not None:
                 best["track_id"] = int(om.object_id)
-                if self.cfg.osd:
-                    om.text_params.display_text = self.worker.osd_text(sb.src.id, int(om.object_id))
         # Evidence crop: only when a plate is larger than any earlier frame of its track (every plate in image mode).
         need = []
         for k, d in enumerate(plate_dets):
@@ -452,6 +501,9 @@ class LprPipeline:
         if t == Gst.MessageType.EOS:
             log.info("pipeline EOS")
             self.loop.quit()
+        elif t == Gst.MessageType.ERROR and (msg.src.get_name() if msg.src else "").startswith("live-"):
+            err, _ = msg.parse_error()
+            log.warning("live view element %s: %s (inference continues)", msg.src.get_name(), err.message)
         elif t == Gst.MessageType.ERROR:
             err, dbg = msg.parse_error()
             idx = self._source_index_of(msg)
@@ -469,6 +521,10 @@ class LprPipeline:
             else:
                 log.error("pipeline error from %s: %s (%s)", msg.src.get_name() if msg.src else "?", err.message, dbg)
                 self.loop.quit()
+        elif t == Gst.MessageType.STATE_CHANGED and msg.src == self.pipeline:
+            if msg.parse_state_changed()[1] == Gst.State.PLAYING and self.playing_since is None:
+                self.playing_since = time.time()
+                log.info("pipeline PLAYING")
         elif t == Gst.MessageType.WARNING:
             w, dbg = msg.parse_warning()
             log.warning("%s: %s", msg.src.get_name() if msg.src else "?", w.message)
@@ -520,6 +576,13 @@ class LprPipeline:
         return True
 
     def health(self) -> Dict[str, Any]:
+        if self.live_osd is not None:
+            for idx, sb in list(self.bins.items()):
+                if sb.src.id in self.state and not sb.src.is_image:
+                    shown = self.live_osd.index == idx
+                    self.state[sb.src.id]["live"] = dict(self.live_osd.stats() if shown else {"publishing": False},
+                                                         osd_active=shown, osd_path=f"{sb.src.id}-osd",
+                                                         raw_path=sb.src.id if sb.src.type in ("rtsp", "rtmp", "http", "hls") else None)
         return {"sources": {k: {kk: vv for kk, vv in v.items() if not kk.startswith("_")} for k, v in self.state.items()},
                 "pipeline": dict(self.stats), "worker": self.worker.stats_snapshot()}
 
@@ -528,8 +591,10 @@ class LprPipeline:
         GLib.timeout_add(500, lambda: (self.worker.tick(), True)[1])
         if self.pipeline.set_state(Gst.State.PLAYING) == Gst.StateChangeReturn.FAILURE:
             raise RuntimeError("pipeline refused to start")
-        self.pipeline.get_state(Gst.CLOCK_TIME_NONE)  # wait until PLAYING (engine loaded)
-        self.playing_since = time.time()
+        # Never block here: without data the pipeline cannot preroll, and the main loop must run anyway (runtime
+        # add/enable and health live on it). PLAYING is also recorded from the bus.
+        if self.pipeline.get_state(10 * Gst.SECOND)[1] == Gst.State.PLAYING:
+            self.playing_since = time.time()
         try:
             self.loop.run()
         finally:

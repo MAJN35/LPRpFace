@@ -159,3 +159,16 @@ def test_http_sink_failure_is_counted_not_raised():
     em.emit({"event_id": "1"})
     em.close()
     assert em.stats["http_failed"] == 1
+
+
+def test_runtime_sources_overlay_survives_restart(tmp_path):
+    from app.runtime_sources import RuntimeSources
+    path = write_yaml(tmp_path, "sources:\n  - {id: cam-01, type: rtsp, uri: 'rtsp://h/1'}\n  - {id: cam-02, type: rtsp, uri: 'rtsp://h/2'}\n")
+    store = RuntimeSources(str(tmp_path / "rt.json"))
+    store.added({"id": "phone", "type": "rtsp", "uri": "rtsp://192.168.1.114:8554", "max_fps": 10})
+    store.removed("cam-02")
+    store.enabled("cam-01", False)
+    again = RuntimeSources(str(tmp_path / "rt.json"))                  # "restart"
+    srcs = {s.id: s for s in again.apply(load_sources(path, env={}), env={})}
+    assert set(srcs) == {"cam-01", "phone"} and srcs["cam-01"].enabled is False and srcs["phone"].max_fps == 10
+    assert oct((tmp_path / "rt.json").stat().st_mode)[-3:] == "600"

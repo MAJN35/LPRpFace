@@ -8,7 +8,7 @@ Environment (defaults in brackets):
   KAFKA_BROKERS []  KAFKA_TOPIC [lpr.plate.events]
   LPR_CROPS_DIR [/data/crops]  LPR_JOBS_DIR [/data/jobs]
   LPR_CONTROL_HOST [0.0.0.0]  LPR_CONTROL_PORT [8090]  LPR_IMAGE_API [1]
-  LPR_OSD [0]  LPR_OUTPUT_RTSP []  LPR_INTERVAL [0]  LPR_EXIT_ON_EOS [auto: 1 without live sources and API]
+  LPR_LIVE [0]  LPR_MEDIA_RTSP [rtsp://media:8554]  LPR_MEDIA_API [http://media:9997]  LPR_INTERVAL [0]  LPR_EXIT_ON_EOS [auto: 1 without live sources and API]
   LPR_DEDUP_S [30]  LPR_TRACK_TIMEOUT_S [1.5]  LPR_MAX_CAMERAS [unset until measured, M8]
 """
 from __future__ import annotations
@@ -31,6 +31,7 @@ from .config import Source, load_sources  # noqa: E402
 from .control import JOB_SOURCE_ID, ControlServer  # noqa: E402
 from .engine import ModelCheckError, ensure_engine  # noqa: E402
 from .pipeline import AppConfig, LprPipeline  # noqa: E402
+from .runtime_sources import RuntimeSources  # noqa: E402
 from .sinks import EventEmitter, build_sinks  # noqa: E402
 from .worker import ReaderWorker  # noqa: E402
 
@@ -58,7 +59,8 @@ def main() -> int:
              "precision": precision, "batch_profile": list(profile)}
     log.info("model %s (pt %s…), engine %s", ver, model["sha256"][:12], engine.name)
 
-    sources = load_sources()
+    store = RuntimeSources(env("LPR_RUNTIME_SOURCES", "/data/sources.runtime.json"))
+    sources = store.apply(load_sources(), dict(os.environ))   # sources.yaml + changes made at runtime
     image_api = env("LPR_IMAGE_API", "1") == "1"
     if image_api and not any(s.id == JOB_SOURCE_ID for s in sources):
         sources.append(Source(id=JOB_SOURCE_ID, type="image_job", name="API image uploads", face_blur=True))
@@ -77,8 +79,9 @@ def main() -> int:
                           VoteConfig(track_timeout_s=float(env("LPR_TRACK_TIMEOUT_S", "1.5"))))
     app_cfg = AppConfig(nvinfer_config=infer_cfg, tracker_config=env("LPR_TRACKER_CONFIG",
                                                                       "/app/configs/tracker_nvsort_lpr.yml"),
-                        max_batch=profile[2], interval=interval, osd=env("LPR_OSD", "0") == "1",
-                        output_rtsp=env("LPR_OUTPUT_RTSP"), exit_on_eos=exit_on_eos)
+                        max_batch=profile[2], interval=interval, live=env("LPR_LIVE", "0") == "1",
+                        media_rtsp=env("LPR_MEDIA_RTSP", "rtsp://media:8554"),
+                        media_api=env("LPR_MEDIA_API", "http://media:9997"), exit_on_eos=exit_on_eos)
     app = LprPipeline(app_cfg, sources, worker)
     def env_int(name, default):
         v = env(name).strip()
@@ -90,7 +93,7 @@ def main() -> int:
     info = {"model": model, "max_cameras": capacity["max_cameras_memory_safe"], "capacity": capacity,
             "engine": engine.name}
     control = ControlServer(app, env("LPR_CONTROL_HOST", "0.0.0.0"), int(env("LPR_CONTROL_PORT", "8090")),
-                            env("LPR_JOBS_DIR", "/data/jobs"), info)
+                            env("LPR_JOBS_DIR", "/data/jobs"), info, store)
     control.start()
 
     def stop(*_):

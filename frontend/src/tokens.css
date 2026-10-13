@@ -59,6 +59,13 @@ label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 @media (max-width: 900px) { .shell { grid-template-columns: 1fr; } nav.side { position: static; flex-direction: row; flex-wrap: wrap; }
   .kpis { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } }
 
+.video-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.video-grid .card { margin-bottom: 0; }
+.video-box { position: relative; aspect-ratio: 16 / 9; overflow: hidden; display: grid; place-items: center; }
+.video-box video { width: 100%; height: 100%; object-fit: contain; background: #000; border-radius: 12px; }
+.video-state { position: absolute; inset: 0; display: grid; place-items: center; color: #eef1f6; font-size: 14px;
+  background: rgba(0, 0, 0, .45); border-radius: 12px; animation: lpr-enter var(--dur) var(--ease) both; }
+
 /* ---- motion ------------------------------------------------------------------------------------------------- */
 button, .btn, nav.side a, input, select { transition: box-shadow var(--dur) var(--ease), transform var(--dur-fast) var(--ease),
   color var(--dur) var(--ease), opacity var(--dur) var(--ease); }
