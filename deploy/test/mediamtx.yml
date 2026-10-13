@@ -1,9 +1,9 @@
 # Local RTSP test server (mediamtx 1.12.3): replays the synthetic test videos as camera streams and accepts the
-# annotated output stream. Test-only; listens on 127.0.0.1 only (host network). The real cameras replace these
+# annotated output stream. Test-only; reachable only on the compose network as mediamtx:8554. The real cameras replace these
 # paths with their own RTSP URLs in sources.yaml.
 logLevel: warn
 rtsp: yes
-rtspAddress: 127.0.0.1:8554
+rtspAddress: :8554            # inside the compose network only (not published)
 rtspTransports: [tcp, udp]
 rtmp: no
 hls: no

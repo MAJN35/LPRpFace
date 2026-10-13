@@ -1,0 +1,43 @@
+{
+ "ref_dets": 221,
+ "matched": 216,
+ "rate": 0.9773755656108597,
+ "extra_cand": 5,
+ "class_shifts": {},
+ "max_score_diff": 0.006129999999999969,
+ "mean_score_diff": 0.001424907407407408,
+ "unmatched_by_class": {
+  "1": 2,
+  "6": 1,
+  "9": 2
+ },
+ "model": "v2",
+ "images": 24,
+ "files": [
+  "images/test/fc_003426.jpg",
+  "images/test/rw_001369.jpg",
+  "images/test/rw_000237.jpg",
+  "images/test/rw_017661.jpg",
+  "images/test/rfshahabpe_002558.jpg",
+  "images/synthetic_test/synthetici_005546.jpg",
+  "images/test/fc_000388.jpg",
+  "images/test/rw_001524.jpg",
+  "images/test/rw_000289.jpg",
+  "images/test/rw_003720.jpg",
+  "images/test/rfshahabpe_003130.jpg",
+  "images/synthetic_test/synthetici_005680.jpg",
+  "images/test/fc_003880.jpg",
+  "images/test/rw_000508.jpg",
+  "images/test/rw_002141.jpg",
+  "images/test/rw_004088.jpg",
+  "images/test/rfshahabpe_002313.jpg",
+  "images/synthetic_test/synthetici_005677.jpg",
+  "images/test/fc_003095.jpg",
+  "images/test/rw_008549.jpg",
+  "images/test/rw_019233.jpg",
+  "images/test/rw_003725.jpg",
+  "images/test/rfshahabpe_000974.jpg",
+  "images/synthetic_test/synthetici_005622.jpg"
+ ],
+ "candidate": "TensorRT FP16 pad 114"
+}

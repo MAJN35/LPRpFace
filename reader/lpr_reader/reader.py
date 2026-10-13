@@ -93,7 +93,7 @@ class PlateRead:
                 "plate_bbox": [round(v, 1) for v in self.plate_bbox]}
 
 
-@dataclass
+@dataclass(eq=False)  # identity: detections hold numpy arrays
 class _Det:
     box: np.ndarray
     class_id: int

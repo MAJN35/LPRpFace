@@ -8,7 +8,7 @@ repo="$(cd "$(dirname "$0")/../.." && pwd)"
 IMAGE="${DS_IMAGE:-nvcr.io/nvidia/deepstream-l4t:6.3-samples@sha256:e01bb8f5ba10584d752b83c7b3cf66c6e01c0e1afd2cdbb1ec31082e947b75cf}"
 rel="$(realpath --relative-to="$repo" "$engine")"
 for b in "${@:-1}"; do
-  out="$(docker run --rm --runtime nvidia -v "$repo:/work" -w /work "$IMAGE" /usr/src/tensorrt/bin/trtexec \
+  out="$(docker run --rm --runtime nvidia -u "$(id -u):$(id -g)" --group-add "$(getent group video | cut -d: -f3)" --group-add "$(getent group render | cut -d: -f3)" -v "$repo:/work" -w /work "$IMAGE" /usr/src/tensorrt/bin/trtexec \
     --loadEngine="/work/$rel" --shapes="images:${b}x3x960x960" --warmUp=3000 --duration=20 --percentile=50,95,99 2>&1)"
   qps="$(sed -n 's/.*Throughput: \([0-9.]*\) qps.*/\1/p' <<<"$out" | tail -1)"
   lat="$(grep 'GPU Compute Time: min' <<<"$out" | tail -1)"

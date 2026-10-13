@@ -44,8 +44,8 @@ rc=$?
 set -e
 secs=$(( $(date +%s) - start ))
 kill "$mon" 2>/dev/null || true
-peak_used=$(sort -n "$mem_log" | tail -1 | cut -d' ' -f1)
-min_avail=$(awk '{print $2}' "$mem_log" | sort -n | head -1)
+# single awk pass (a "sort | head" pipeline dies of SIGPIPE under pipefail)
+read -r peak_used min_avail < <(awk 'NR==1{p=$1;m=$2} {if($1>p)p=$1; if($2<m)m=$2} END{print p, m}' "$mem_log")
 if [[ $rc -ne 0 ]]; then
   echo "BUILD FAILED (rc=$rc, ${secs}s, peak used ${peak_used} MiB, min available ${min_avail} MiB); log: $log" >&2
   grep -E "ERROR|Error|error" "$log" | tail -5 >&2

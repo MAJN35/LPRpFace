@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LPR Overview mock</title>
+<!-- M7 gate self-check: static mock of the Overview page (Neumorphism / soft UI on design tokens).
+     All values are invented placeholders, not real plates. The real app self-hosts Vazirmatn (OFL-1.1). -->
+<style>
+:root {
+  --bg: #e6e9ef; --surface: #e6e9ef; --text: #1d2433; --muted: #4a556b; --accent: #2457c5; --ok: #1f7a4d;
+  --warn: #9a5b00; --bad: #b42318; --shadow-dark: #c3c8d1; --shadow-light: #ffffff; --focus: #ff9f1a;
+  --radius: 16px; --gap: 20px; --font: system-ui, "Segoe UI", Roboto, sans-serif;
+  --font-fa: "Vazirmatn", "Noto Naskh Arabic", Tahoma, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #1f242d; --surface: #1f242d; --text: #eef1f6; --muted: #b3bccb;
+    --accent: #8db2ff; --ok: #5fd19a; --warn: #f2b45c; --bad: #ff8a80; --shadow-dark: #161a20; --shadow-light: #282e3a; }
+}
+:root[data-theme="dark"] { --bg: #1f242d; --surface: #1f242d; --text: #eef1f6; --muted: #b3bccb; --accent: #8db2ff;
+  --ok: #5fd19a; --warn: #f2b45c; --bad: #ff8a80; --shadow-dark: #161a20; --shadow-light: #282e3a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 var(--font); }
+.raised { background: var(--surface); border-radius: var(--radius);
+  box-shadow: 6px 6px 14px var(--shadow-dark), -6px -6px 14px var(--shadow-light); }
+.inset { background: var(--surface); border-radius: 12px;
+  box-shadow: inset 4px 4px 10px var(--shadow-dark), inset -4px -4px 10px var(--shadow-light); }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.shell { display: grid; grid-template-columns: 220px 1fr; gap: var(--gap); padding: var(--gap); min-height: 100vh; }
+nav { padding: 18px 12px; display: flex; flex-direction: column; gap: 8px; height: fit-content; }
+nav a { color: var(--text); text-decoration: none; padding: 10px 14px; border-radius: 12px; font-weight: 500; }
+nav a[aria-current="page"] { box-shadow: inset 3px 3px 8px var(--shadow-dark), inset -3px -3px 8px var(--shadow-light); color: var(--accent); }
+h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 var(--gap); }
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--gap); margin-bottom: var(--gap); }
+.kpi { padding: 18px 20px; } .kpi .label { color: var(--muted); font-size: 13px; }
+.kpi .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: var(--gap); }
+.card { padding: 20px; } .card h2 { font-size: 16px; margin: 0 0 14px; }
+table { width: 100%; border-collapse: collapse; } th, td { text-align: left; padding: 10px 8px; }
+th { color: var(--muted); font-weight: 600; font-size: 13px; } tr + tr td { border-top: 1px solid var(--shadow-dark); }
+.plate { display: inline-flex; gap: 10px; align-items: center; }
+.plate .fa { direction: rtl; unicode-bidi: isolate; font-family: var(--font-fa); font-size: 18px; padding: 2px 10px; }
+.plate .lat { color: var(--muted); font-size: 13px; font-variant-numeric: tabular-nums; }
+.badge { font-size: 12px; padding: 2px 10px; border-radius: 999px; font-weight: 600; }
+.ok { color: var(--ok); } .warn { color: var(--warn); } .bad { color: var(--bad); }
+.cam { display: flex; justify-content: space-between; padding: 10px 12px; margin-bottom: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+.banner { padding: 10px 14px; margin-bottom: var(--gap); display: flex; gap: 10px; align-items: center; }
+button { font: inherit; color: var(--text); border: 0; padding: 8px 16px; cursor: pointer; }
+@media (max-width: 900px) { .shell { grid-template-columns: 1fr; } .kpis { grid-template-columns: repeat(2, 1fr); } .grid2 { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="raised" aria-label="Main">
+    <strong style="padding:6px 14px 12px">LPR · Edge</strong>
+    <a href="#" aria-current="page">Overview</a><a href="#">Live</a><a href="#">History</a>
+    <a href="#">System health</a><a href="#">Settings</a>
+  </nav>
+  <main>
+    <h1>Overview</h1><p class="sub">Last 24 hours · model v2 · FP16 · updated 08:41:12</p>
+    <div class="banner inset" role="status"><span class="dot" style="background:var(--warn)"></span>
+      <span><strong class="warn">Stale:</strong> cam-02 sent no frames for 45 s (reconnecting).</span></div>
+    <section class="kpis" aria-label="Key figures">
+      <div class="kpi raised"><div class="label">Plates read</div><div class="value">1,284</div></div>
+      <div class="kpi raised"><div class="label">Valid format</div><div class="value">91.2 %</div></div>
+      <div class="kpi raised"><div class="label">Cameras online</div><div class="value">1 / 2</div></div>
+      <div class="kpi raised"><div class="label">Inference</div><div class="value">17.8 fps</div></div>
+    </section>
+    <div class="grid2">
+      <section class="card raised" aria-labelledby="recent"><h2 id="recent">Recent plates</h2>
+        <table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Type</th><th>Status</th></tr></thead><tbody>
+          <tr><td>08:41:03</td><td>cam-01</td><td><span class="plate"><span class="fa inset" lang="fa">۱۲ ب ۳۴۵ | ۶۷</span><span class="lat">12 Be 345 | 67</span></span></td><td>standard</td><td><span class="badge inset ok">valid</span></td></tr>
+          <tr><td>08:40:51</td><td>cam-01</td><td><span class="plate"><span class="fa inset" lang="fa">۹۶۲۱۳</span><span class="lat">96213 · KISH</span></span></td><td>freezone</td><td><span class="badge inset ok">valid</span></td></tr>
+          <tr><td>08:40:22</td><td>cam-02</td><td><span class="plate"><span class="fa inset" lang="fa">۴۵ ی ۲۹</span><span class="lat">45 Ye 29</span></span></td><td>unknown</td><td><span class="badge inset bad">6 of 8 chars</span></td></tr>
+        </tbody></table></section>
+      <section class="card raised" aria-labelledby="cams"><h2 id="cams">Cameras</h2>
+        <div class="cam inset"><span><span class="dot" style="background:var(--ok)"></span>cam-01</span><span>9.8 fps</span></div>
+        <div class="cam inset"><span><span class="dot" style="background:var(--warn)"></span>cam-02</span><span>reconnecting</span></div>
+        <button class="raised" type="button">Open live view</button></section>
+    </div>
+  </main>
+</div>
+</body>
+</html>

@@ -1,0 +1,88 @@
+// Backend API client: bearer token from login (sessionStorage), JSON helpers, live WebSocket with backoff.
+export type EventSummary = {
+  event_id: string; event_type: string; camera_id: string; source_type: string; source_file: string | null;
+  timestamp: string; track_id: number | null; model_version: string; plate_type: string;
+  plate_string_fa: string; plate_string_latin: string; zone: string | null; expiry: string | null;
+  markers: string[]; confidence: number; is_valid: boolean | null; invalid_reason: string | null;
+  frames_voted: number; has_crop: boolean;
+};
+export type EventDetail = EventSummary & {
+  characters: { class_id: number; name: string; confidence: number; margin?: number; box: number[] }[];
+  plate_bbox: number[]; frame_size: number[]; model_sha256: string; engine_sha256: string | null;
+  precision: string; processed_at: string | null;
+};
+export type Page = { items: EventSummary[]; total: number; limit: number; offset: number };
+export type Stats = { hours: number; total: number; valid: number; valid_rate: number | null;
+  by_camera: Record<string, number>; by_plate_type: Record<string, number>; last_event_at: string | null };
+export type SourceHealth = { status: string; fps_in?: number; last_frame_age_s?: number | null; last_error?: string | null;
+  reconnects?: number; frames_in?: number };
+export type Status = {
+  database: { events: number; last_event_at: string | null };
+  inference: { reachable: boolean; error?: string; model?: { version: string; precision: string; batch_profile: number[] };
+    engine?: string; max_cameras?: number | null; pipeline?: Record<string, number>; worker?: Record<string, unknown>;
+    sources?: Record<string, SourceHealth> };
+  retention_days: number;
+};
+export type Camera = { id: string; name: string; type: string; uri: string; enabled: boolean; max_fps: number;
+  roi: number[][] | null; min_plate_px: number; face_blur: boolean; record: boolean };
+
+const TOKEN_KEY = "lpr.token";
+export const auth = {
+  get token(): string | null { try { return sessionStorage.getItem(TOKEN_KEY); } catch { return null; } },
+  set(token: string | null) { try { token ? sessionStorage.setItem(TOKEN_KEY, token) : sessionStorage.removeItem(TOKEN_KEY); } catch { /* storage blocked */ } },
+};
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
+
+export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const headers = new Headers(init.headers);
+  if (auth.token) headers.set("Authorization", `Bearer ${auth.token}`);
+  let res: Response;
+  try {
+    res = await fetch(`/api/v1${path}`, { ...init, headers });
+  } catch {
+    throw new ApiError(0, "Backend unreachable");
+  }
+  if (res.status === 401) { auth.set(null); window.dispatchEvent(new Event("lpr:unauthorized")); }
+  if (!res.ok) {
+    let detail = res.statusText;
+    try { const b = await res.json(); detail = typeof b.detail === "string" ? b.detail : JSON.stringify(b.detail); } catch { /* not json */ }
+    throw new ApiError(res.status, detail);
+  }
+  return res.json() as Promise<T>;
+}
+
+export async function login(username: string, password: string): Promise<string> {
+  const body = new URLSearchParams({ username, password });
+  const r = await api<{ access_token: string; role: string }>("/auth/login", { method: "POST", body });
+  auth.set(r.access_token);
+  return r.role;
+}
+
+export const cropUrl = (id: string) => `/api/v1/events/${id}/crop?token=${encodeURIComponent(auth.token ?? "")}`;
+
+export function query(params: Record<string, string | number | boolean | undefined | null>): string {
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") q.set(k, String(v));
+  const s = q.toString();
+  return s ? `?${s}` : "";
+}
+
+export type LiveState = "connecting" | "open" | "closed";
+// Live events with reconnect backoff (1 s doubling to 30 s). Returns a stop function.
+export function connectLive(onEvent: (e: EventSummary) => void, onState: (s: LiveState) => void): () => void {
+  let ws: WebSocket | null = null; let delay = 1000; let stopped = false; let timer: number | undefined;
+  const open = () => {
+    if (stopped) return;
+    onState("connecting");
+    const proto = location.protocol === "https:" ? "wss" : "ws";
+    ws = new WebSocket(`${proto}://${location.host}/api/v1/ws/events?token=${encodeURIComponent(auth.token ?? "")}`);
+    ws.onopen = () => { delay = 1000; onState("open"); };
+    ws.onmessage = (m) => { try { const d = JSON.parse(m.data); if (d.type === "event") onEvent(d.event); } catch { /* ignore */ } };
+    ws.onclose = () => { onState("closed"); if (!stopped) { timer = window.setTimeout(open, delay); delay = Math.min(delay * 2, 30000); } };
+  };
+  open();
+  return () => { stopped = true; window.clearTimeout(timer); ws?.close(); };
+}

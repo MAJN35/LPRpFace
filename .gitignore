@@ -31,3 +31,7 @@ dist/
 # Host TensorRT/CUDA headers staged for the parser build
 deepstream/.build-include/
 deepstream/parsers/*.so
+
+# Frontend build output
+frontend/node_modules/
+frontend/dist/

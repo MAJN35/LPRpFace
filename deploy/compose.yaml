@@ -1,0 +1,174 @@
+# LPR platform on one Jetson (Xavier NX, JetPack 5.1.2). All services on one internal network; only the dashboard
+# port is published (bound to 127.0.0.1 unless FRONTEND_BIND is set). Kafka, Postgres, the backend and the
+# DeepStream control API are never published.
+#
+#   cp deploy/.env.example deploy/.env && edit it
+#   docker compose -f deploy/compose.yaml --env-file deploy/.env up -d
+#   test RTSP cameras:  ... --profile test up -d
+name: lpr
+
+x-logging: &logging
+  driver: json-file
+  options: {max-size: "10m", max-file: "3"}
+
+services:
+  deepstream:
+    image: lpr-deepstream:6.3
+    runtime: nvidia
+    restart: unless-stopped
+    logging: *logging
+    command: ["python3", "-m", "app.main"]
+    environment:
+      MODEL_VERSION: ${MODEL_VERSION:-v2}
+      PRECISION: ${PRECISION:-fp16}
+      BATCH_PROFILE: ${BATCH_PROFILE:-1,2,4}
+      LPR_EVENT_SINKS: ${LPR_EVENT_SINKS:-jsonl,kafka}
+      KAFKA_BROKERS: kafka:9092
+      KAFKA_TOPIC: lpr.plate.events
+      LPR_EVENTS_JSONL: /data/events/events.jsonl
+      LPR_CROPS_DIR: /data/crops
+      LPR_JOBS_DIR: /data/jobs
+      LPR_INTERVAL: ${LPR_INTERVAL:-0}
+      LPR_OSD: ${LPR_OSD:-0}
+      LPR_OUTPUT_RTSP: ${LPR_OUTPUT_RTSP:-}
+      LPR_DEDUP_S: ${LPR_DEDUP_S:-30}
+      LPR_MAX_CAMERAS: ${LPR_MAX_CAMERAS:-}
+      LPR_SOURCES_FILE: /config/sources.yaml
+      ENGINE_DIR: /engines
+      ONNX_DIR: /models/${MODEL_VERSION:-v2}/export
+      # camera credentials referenced as ${VAR} in sources.yaml
+      CAM01_USER: ${CAM01_USER:-}
+      CAM01_PASS: ${CAM01_PASS:-}
+      CAM02_USER: ${CAM02_USER:-}
+      CAM02_PASS: ${CAM02_PASS:-}
+    volumes:
+      - ${SOURCES_FILE:-./sources.yaml}:/config/sources.yaml:ro
+      - ../models:/models:ro
+      - ${ENGINE_CACHE:-../engine_cache}:/engines
+      - lpr-data:/data
+      - ${MEDIA_DIR:-../tests/data/private}:/work/tests/data/private:ro
+      # - /tmp/argus_socket:/tmp/argus_socket   # CSI cameras (nvarguscamerasrc)
+    # devices: ["/dev/video0:/dev/video0"]      # USB cameras
+    stop_grace_period: 20s
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 900s        # first start builds the TensorRT engine (~40-60 min on Xavier NX)
+    depends_on:
+      kafka-init: {condition: service_completed_successfully}
+
+  kafka:
+    image: apache/kafka:3.9.1@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms256m -Xmx384m}
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+    volumes: [kafka-data:/var/lib/kafka/data]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  kafka-init:
+    image: apache/kafka:3.9.1@sha256:4ceccc577f03f51f6af8dbfda55194d0d892f4fa7913ffbded567ce3895622ed
+    restart: "no"
+    logging: *logging
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        for t in lpr.plate.events lpr.system.events lpr.dead-letter lpr.face.events; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic $$t --partitions 1 --replication-factor 1
+        done
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list
+    depends_on:
+      kafka: {condition: service_healthy}
+
+  consumer:
+    image: lpr-consumer:1.0
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      BACKEND_URL: http://backend:8000
+      INGEST_KEY: ${INGEST_KEY:?set INGEST_KEY in .env}
+    depends_on:
+      kafka-init: {condition: service_completed_successfully}
+      backend: {condition: service_healthy}
+
+  db:
+    image: postgres:15.10-alpine3.21@sha256:a58cec2ba7a60b4c08d51f2ca93c1ad65fbf96e75cf0c89b7c0d2684860d3bb3
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      POSTGRES_USER: lpr
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: lpr
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lpr -d lpr"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: lpr-backend:1.0
+    restart: unless-stopped
+    logging: *logging
+    environment:
+      DATABASE_URL: postgresql+asyncpg://lpr:${POSTGRES_PASSWORD}@db:5432/lpr
+      SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      INGEST_KEY: ${INGEST_KEY}
+      AUTH_ENABLED: ${AUTH_ENABLED:-true}
+      INFERENCE_URL: http://deepstream:8090
+      CROPS_DIR: /data/crops
+      RETENTION_DAYS: ${RETENTION_DAYS:-30}
+    volumes: [lpr-data:/data:ro]
+    depends_on:
+      db: {condition: service_healthy}
+
+  frontend:
+    image: lpr-frontend:1.0
+    restart: unless-stopped
+    logging: *logging
+    ports: ["${FRONTEND_BIND:-127.0.0.1}:${FRONTEND_PORT:-8080}:8080"]
+    depends_on:
+      backend: {condition: service_healthy}
+
+  mediamtx:                       # test RTSP cameras replaying the synthetic videos (profile: test)
+    profiles: [test]
+    image: bluenviron/mediamtx:1.12.3-ffmpeg@sha256:f4bbb3af99b7d9a812499f69f6dd3de5ac54339a788c1c5e45dc36f9c1dffbd3
+    restart: unless-stopped
+    logging: *logging
+    volumes:
+      - ./test/mediamtx.yml:/mediamtx.yml:ro
+      - ${MEDIA_DIR:-../tests/data/private}/videos:/videos:ro
+
+volumes:
+  lpr-data:
+  kafka-data:
+  pgdata:
+
+networks:
+  default:
+    name: lpr

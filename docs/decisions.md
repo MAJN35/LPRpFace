@@ -174,3 +174,28 @@ Format: date, decision, reason, alternatives, source.
 - **Check:** reader on the ground-truth label boxes (`tools/eval_reader.py --oracle`): standard 8-character plates
   100 % (263/263 real, 167/167 synthetic), free zone 85/85, protocol 10/10, transit 9/10 (the miss has unlabelled
   expiry digits in its label file).
+
+## 2026-10-13: TensorRT engine and batch profile (M3)
+
+- **Decision:** FP16 engine, profile min 1 / opt 2 / max 4 (user default). Batch 8 **not built**: the rule is "try 8
+  only if 4 builds with ≥ 1.5 GB free"; the batch-4 build left at least 966 MiB available (host peak 5,531 MiB
+  used; my image builds ran at the same time, so this is conservative). Undo: `MAX_BATCH=8 OPT_BATCH=4
+  deepstream/scripts/build_engine.sh v2` with nothing else running.
+- **Build:** `trtexec` 8.5.2.2 inside `deepstream-l4t:6.3-samples`, workspace 2048 MiB, 4,312 s (72 min) for v2.
+  TensorRT 8.5 has `--buildOnly`, not `--skipInference` (8.6+). `build_engine.sh` had a `sort | head` SIGPIPE
+  under `pipefail` after the build; fixed (single awk pass); the v2 record was finalized from the build log.
+- **Throughput (v2, nvpmodel mode 8, jetson_clocks not run, trtexec GPU compute):** batch 1: 3.56 img/s (p50 277 ms);
+  batch 2: 3.61 img/s (p50 545 ms); batch 4: 3.58 img/s (p50 1,081 ms). The GPU is saturated at batch 1, so batching
+  gives no throughput, only flexibility for several sources.
+- **Consequence:** YOLO12x at 960 delivers ~3.6 inferences/s in total on this Xavier NX, below the 8–10 fps per
+  camera target even for one camera. Mitigations are measured as labeled experiments in M8 (`max_fps`, `interval`,
+  ROI); 640 input and INT8 are out of the default per the user's rules.
+- **Source:** `docs/m3_throughput_v2.jsonl`, `engine_cache/*.json`.
+
+## 2026-10-13: Per-class thresholds unchanged after a measured experiment (M3)
+
+- **Decision:** keep the A.7 thresholds (characters 0.35). On v2 TensorRT FP16 (pad 0), real standard plates read
+  190/263 exactly at a character threshold of 0.35, 0.30, 0.25 and 0.20 alike: the missing characters of the failing
+  plates are not weak detections, they are absent (small plates, ~60 px in the network input; A.5 limit).
+- **Reader fix found on real detections:** `_Det` compared by value (numpy arrays) in `list.remove` when a plate had
+  > 8 character boxes → now identity comparison (`@dataclass(eq=False)`), with a unit test.

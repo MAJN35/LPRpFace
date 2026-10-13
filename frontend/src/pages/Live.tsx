@@ -1,0 +1,31 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { EventSummary, LiveState, connectLive } from "../api";
+import { Plate, Validity, fmtTime } from "../components/ui";
+
+export function Live({ connect = connectLive }: { connect?: typeof connectLive }) {
+  const [events, setEvents] = useState<EventSummary[]>([]);
+  const [state, setState] = useState<LiveState>("connecting");
+  useEffect(() => connect((e) => setEvents((xs) => [e, ...xs.filter((x) => x.event_id !== e.event_id)].slice(0, 50)), setState), [connect]);
+  return (
+    <>
+      <h1>Live</h1>
+      <p className="sub">Plates as they are recognized. Live video needs an approved WebRTC/HLS gateway (not enabled).</p>
+      {state !== "open" && (
+        <div className="banner inset" role="status">
+          <span className="dot" aria-hidden="true" style={{ background: state === "connecting" ? "var(--warn)" : "var(--bad)" }} />
+          <span>{state === "connecting" ? "Connecting to live updates…" : <><strong className="bad">Disconnected.</strong> Reconnecting automatically.</>}</span>
+        </div>
+      )}
+      <section className="card raised" aria-live="polite" aria-label="Live plates">
+        {events.length === 0 ? <div className="state">{state === "open" ? "Waiting for the next plate…" : "No live data."}</div> : (
+          <div className="table-wrap"><table><thead><tr><th>Time</th><th>Camera</th><th>Plate</th><th>Type</th><th>Status</th></tr></thead><tbody>
+            {events.map((e) => (
+              <tr key={e.event_id}><td><Link to={`/events/${e.event_id}`}>{fmtTime(e.timestamp)}</Link></td><td>{e.camera_id}</td><td><Plate e={e} /></td><td>{e.plate_type}</td><td><Validity e={e} /></td></tr>
+            ))}
+          </tbody></table></div>
+        )}
+      </section>
+    </>
+  );
+}

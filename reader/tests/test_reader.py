@@ -63,6 +63,13 @@ def test_invalid_reads_are_returned_not_dropped():
     assert r.plate_string_latin == "1 2 Be 3 4 5"
 
 
+def test_extra_boxes_dropped_smallest_then_weakest():
+    # 8 real characters + a tiny noise box + a weak full-size spurious box (seen on real TensorRT output)
+    chars = row(STD) + [det("4", 225, 50, 3, 4, score=0.9), det("9", 238, 50, score=0.36)]
+    r = read_frame([plate(w=160)] + chars)[0]
+    assert r.is_valid and r.plate_string_latin == "12 Be 345 | 67"
+
+
 def test_plate_without_characters_is_reported():
     r = read_frame([plate()])[0]
     assert r.is_valid is False and r.invalid_reason == "no characters"
