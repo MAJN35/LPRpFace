@@ -9,7 +9,8 @@ Environment (defaults in brackets):
   LPR_CROPS_DIR [/data/crops]  LPR_JOBS_DIR [/data/jobs]
   LPR_CONTROL_HOST [0.0.0.0]  LPR_CONTROL_PORT [8090]  LPR_IMAGE_API [1]
   LPR_LIVE [0]  LPR_MEDIA_RTSP [rtsp://media:8554]  LPR_MEDIA_API [http://media:9997]  LPR_INTERVAL [0]  LPR_EXIT_ON_EOS [auto: 1 without live sources and API]
-  LPR_DEDUP_S [30]  LPR_TRACK_TIMEOUT_S [1.5]  LPR_MAX_CAMERAS [unset until measured, M8]
+  LPR_DEDUP_S [30]  LPR_TRACK_TIMEOUT_S [3]  LPR_MIN_TRACK_FRAMES [3]  LPR_EMIT_INVALID [0]
+  LPR_MAX_CAMERAS [unset until measured, M8]
 """
 from __future__ import annotations
 
@@ -75,8 +76,12 @@ def main() -> int:
     sinks = build_sinks(env("LPR_EVENT_SINKS", "stdout,jsonl"), env("LPR_EVENTS_JSONL", "/data/events/events.jsonl"),
                         env("LPR_EVENT_HTTP_URL"), env("KAFKA_BROKERS"), env("KAFKA_TOPIC", "lpr.plate.events"))
     emitter = EventEmitter(sinks)
+    # Video emit policy (user request 2026-10-13): one event per tracker track seen in >= LPR_MIN_TRACK_FRAMES
+    # frames, and only plausible plates unless LPR_EMIT_INVALID=1. Image jobs always return their read.
     worker = ReaderWorker(emitter, model, env("LPR_CROPS_DIR", "/data/crops"), float(env("LPR_DEDUP_S", "30")),
-                          VoteConfig(track_timeout_s=float(env("LPR_TRACK_TIMEOUT_S", "1.5"))))
+                          VoteConfig(track_timeout_s=float(env("LPR_TRACK_TIMEOUT_S", "3")),
+                                     min_frames=int(env("LPR_MIN_TRACK_FRAMES", "3"))),
+                          emit_invalid=env("LPR_EMIT_INVALID", "0") == "1")
     app_cfg = AppConfig(nvinfer_config=infer_cfg, tracker_config=env("LPR_TRACKER_CONFIG",
                                                                       "/app/configs/tracker_nvsort_lpr.yml"),
                         max_batch=profile[2], interval=interval, live=env("LPR_LIVE", "0") == "1",

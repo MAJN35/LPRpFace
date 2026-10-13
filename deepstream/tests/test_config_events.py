@@ -172,3 +172,15 @@ def test_runtime_sources_overlay_survives_restart(tmp_path):
     srcs = {s.id: s for s in again.apply(load_sources(path, env={}), env={})}
     assert set(srcs) == {"cam-01", "phone"} and srcs["cam-01"].enabled is False and srcs["phone"].max_fps == 10
     assert oct((tmp_path / "rt.json").stat().st_mode)[-3:] == "600"
+
+
+def test_emit_policy_accepts_only_plausible_plates():
+    from types import SimpleNamespace as N
+    from app.worker import plausible
+    digit = lambda d: {"class_id": d}  # noqa: E731
+    assert plausible(N(is_valid=True, characters=[]))
+    assert not plausible(N(is_valid=False, characters=[digit(1)] * 6))           # wrong character count
+    assert not plausible(N(is_valid=False, characters=[]))                       # plate box without characters
+    assert plausible(N(is_valid=None, characters=[digit(1), digit(2), digit(3), digit(4)]))   # protocol, 4 digits
+    assert not plausible(N(is_valid=None, characters=[digit(1), {"class_id": 11}]))
+
