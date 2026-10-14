@@ -492,3 +492,32 @@ Format: date, decision, reason, alternatives, source.
 - **Buttons:** a press is a quick asymmetric squeeze (scale .975 × .94, 90 ms); the release springs back over 460 ms
   with a slight overshoot (`--ease-spring`). The ripple stays only on primary actions.
 - **Pages:** the content fades in 70 ms after the click, so the indicator leads and the page follows.
+
+## 2026-10-14: Video upload, source copies, camera limit, detection-stream guard (user requests)
+
+- **Video upload from the dashboard:**
+  - Settings → Videos does `PUT /api/v1/videos/<name>`. The body is the file, streamed straight to `/data/videos` on
+    the shared volume: no multipart temp copy on the SD card.
+  - Limits: 2048 MB per file, and at least 4096 MB must stay free on the disk after an upload.
+  - Names allow Latin and Persian characters but never a path. A video used by a source cannot be deleted.
+  - "Add as source" fills the form (type `file`), with loop and "as fast as possible" switches.
+  - nginx raises the body limit only for `^/api/v1/videos/[^/]+$`. It is a regex because a prefix location ending in
+    `/` redirects the list URL; that broke the list and was found by the e2e.
+  - DeepStream (root) creates `/data/videos` owned by the backend's uid 10001.
+- **Copies:**
+  - The Add source form's "Copies" (1–4) adds `<id>-2`, `<id>-3`, … with `copy_of: <id>`: the same input given to the
+    pipeline several times, each with its own id and events, e.g. for load tests.
+  - Network copies read the original's gateway relay, so there is one camera connection; the phone camera cannot
+    serve late joiners.
+  - An original with copies cannot be removed first.
+- **Camera limit enforced:** DeepStream refuses an enabled video source beyond `LPR_MAX_CAMERAS` (4, the measured
+  memory-safe maximum; 8 froze the board). Image jobs do not count; disabled sources do not count.
+- **Detection-stream guard:** two DeepStream crashes ("free(): invalid pointer" in NVENC/NvBufSurfTransform, Docker
+  restarted the container) happened when the detection stream started on a camera that delivered no frames. The
+  cameras were the never-configured placeholder `cam-02` (enabled from the dashboard) and the phone, which had
+  stopped serving.
+  - `live_start` now answers `not_ready` unless the camera is live with a frame in the last 5 s.
+  - The Live page preselects the first camera that is actually live.
+- **Measured on the board** (phone off, cam-02 placeholder reconnecting): a looping test video plus one copy ran
+  at 1.4 inferences/s together after a slow start. Dead cameras being rebuilt every few seconds hold up the shared
+  batch; disabling sources that cannot connect is recommended.

@@ -136,6 +136,20 @@ try {
   await shot("history_freezone_fa");
 
   // the rest in English (language switch, remembered)
+  // video upload through nginx (large-body route) to the backend, listed, then deleted (demo bytes, not a real video)
+  {
+    const fs = await import("node:fs");
+    fs.writeFileSync("/tmp/e2e-demo.mp4", Buffer.concat([Buffer.from("000000186674797069736f6d", "hex"), Buffer.alloc(3 * 1024 * 1024, 7)]));
+    await page.goto(`${URL_}/settings`, { waitUntil: "networkidle0" });
+    const input = await page.waitForSelector("#vid-h ~ .row input[type=file], section[aria-labelledby=vid-h] input[type=file]");
+    await input.uploadFile("/tmp/e2e-demo.mp4");
+    await page.waitForFunction(() => __all().includes("e2e-demo.mp4") && !!document.querySelector("section[aria-labelledby=vid-h] tbody tr"), { timeout: 30000 });
+    check(true, "video upload (3 MB through nginx) appears in the video list");
+    const vids = await fetch(`${BACKEND}/api/v1/videos`, { headers: { Authorization: `Bearer ${await page.evaluate(() => sessionStorage.getItem("lpr.token"))}` } }).then((r) => r.json());
+    const v = vids.items.find((x) => x.name === "e2e-demo.mp4");
+    check(v && v.size === 3 * 1024 * 1024 + 12 && v.path === "/data/videos/e2e-demo.mp4", `uploaded video stored whole (${v && v.size} bytes)`);
+    await fetch(`${BACKEND}/api/v1/videos/e2e-demo.mp4`, { method: "DELETE", headers: { Authorization: `Bearer ${await page.evaluate(() => sessionStorage.getItem("lpr.token"))}` } });
+  }
   // language and notification switches live in Settings
   await page.goto(`${URL_}/settings`, { waitUntil: "networkidle0" });
   check(!(await page.$("nav.side [role=group][aria-label='زبان']")), "language switch is in Settings, not the sidebar");

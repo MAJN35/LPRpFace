@@ -64,6 +64,7 @@ class AppConfig:
     media_rtsp: str = "rtsp://media:8554"  # mediamtx RTSP (the detection stream is published as <id>-osd)
     media_api: str = "http://media:9997"   # mediamtx API (raw camera paths are registered here)
     restream: bool = True                  # read network cameras through the gateway (one camera connection)
+    max_sources: int = 0                   # enabled video sources allowed at once (0 = no limit): memory-safe maximum
     exit_on_eos: bool = True
     worker_queue: int = 64
 
@@ -175,12 +176,14 @@ class LprPipeline:
         depends on the gateway."""
         relay_wanted = self.cfg.live and self.cfg.restream and self.gateway is not None and \
             src.type in ("rtsp", "rtmp", "http", "hls")
+        relay_id = src.copy_of or src.id       # a copy reads the original's stream (one camera connection for all)
         if relay_wanted and relay_checked is None:
-            self.gateway.register_raw(src)
+            if not src.copy_of:
+                self.gateway.register_raw(src)
             self.state.setdefault(src.id, {"failures": 0, "reconnects": 0}).update(status="connecting", started_at=time.time())
 
             def wait():
-                ok = self.gateway.wait_ready(src.id, 30.0)
+                ok = self.gateway.wait_ready(relay_id, 30.0)
                 if not ok:
                     log.warning("[%s] gateway has no stream after 30 s: reading the camera directly", src.id)
                 # removed or replaced while waiting: nothing to attach
@@ -190,7 +193,7 @@ class LprPipeline:
             return
         idx = self._next_index
         self._next_index += 1
-        relay = f"{self.cfg.media_rtsp.rstrip('/')}/{src.id}" if relay_wanted and relay_checked else None
+        relay = f"{self.cfg.media_rtsp.rstrip('/')}/{relay_id}" if relay_wanted and relay_checked else None
         sb = SourceBin(src, idx, on_image_done=self.worker.image_failed, input_uri=relay)
         self.pipeline.add(sb.bin)
         sink = self.mux.get_request_pad(f"sink_{idx}")
@@ -232,10 +235,24 @@ class LprPipeline:
         log.info("[%s] detached (mux pad %d)", sb.src.id, idx)
         return sb
 
+    VIDEO_FREE = ("image", "image_folder", "image_job")
+
+    def _check_capacity(self, src: Source) -> None:
+        """Refuse a video source beyond the measured memory-safe maximum (8 sources froze this board)."""
+        if not self.cfg.max_sources or src.type in self.VIDEO_FREE or not src.enabled:
+            return
+        n = sum(1 for s in self.configs.values() if s.enabled and s.type not in self.VIDEO_FREE and s.id != src.id)
+        if n >= self.cfg.max_sources:
+            raise ValueError(f"camera limit reached: {self.cfg.max_sources} video sources at once is the memory-safe "
+                             f"maximum on this device (LPR_MAX_CAMERAS); disable or remove one first")
+
     def add_source(self, src: Source) -> None:
         """Runtime add (called from the control API thread; runs on the main loop)."""
-        if src.id in self.by_id:
-            raise ValueError(f"source {src.id} already running")
+        if src.id in self.by_id or src.id in self.configs:
+            raise ValueError(f"source {src.id} already exists")
+        if src.copy_of and src.copy_of not in self.configs:
+            raise ValueError(f"source {src.id}: copy_of {src.copy_of!r} is not a source")
+        self._check_capacity(src)
         self.configs[src.id] = src
         self.state.setdefault(src.id, {"failures": 0, "reconnects": 0})
         GLib.idle_add(self._idle(self._attach, src))
@@ -254,6 +271,8 @@ class LprPipeline:
 
     def set_enabled(self, sid: str, enabled: bool) -> None:
         src = self.configs[sid]
+        if enabled and not src.enabled:
+            self._check_capacity(src)
         src.enabled = enabled
         if enabled and sid not in self.by_id:
             GLib.idle_add(self._idle(self._attach, src))
@@ -269,6 +288,12 @@ class LprPipeline:
             return "not_video"
         if self.live_osd.index not in (None, idx):
             return "busy"
+        # Only a camera that delivers frames now: starting the encoder on a source that is reconnecting or never
+        # connected crashed DeepStream 6.3 (NVENC/NvBufSurfTransform "free(): invalid pointer", seen twice).
+        sb = self.bins[idx]
+        st = self.state.get(sid, {})
+        if st.get("status") not in ("live", "running") or sb.last_buffer_t is None or time.time() - sb.last_buffer_t > 5:
+            return "not_ready"
         GLib.idle_add(self._idle(self.live_osd.start, idx, sid))
         return "starting"
 

@@ -114,6 +114,9 @@ class ControlServer:
                 m = re.fullmatch(r"/sources/([^/]+)", self.path.rstrip("/"))
                 if not m or m.group(1) not in srv.app.configs:
                     return self._send(404, {"error": "unknown source"})
+                copies = [s.id for s in srv.app.configs.values() if s.copy_of == m.group(1)]
+                if copies:   # they read this source's stream
+                    return self._send(409, {"error": f"remove its copies first: {', '.join(copies)}"})
                 srv.app.remove_source(m.group(1))
                 if srv.store is not None:
                     srv.store.removed(m.group(1))
@@ -141,4 +144,4 @@ class ControlServer:
 def _public(src) -> Dict[str, Any]:
     return {"id": src.id, "name": src.name, "type": src.type, "uri": src.uri_redacted, "enabled": src.enabled,
             "max_fps": src.max_fps, "roi": src.roi, "min_plate_px": src.min_plate_px, "face_blur": src.face_blur,
-            "record": src.record}
+            "record": src.record, "copy_of": src.copy_of}

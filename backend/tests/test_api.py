@@ -222,3 +222,24 @@ def test_slot_search_exact_and_partial(client, auth):
     assert hits("9,,,,3", layout="freezone") == 1 and hits("9,6,2,1", layout="freezone") == 422
     assert hits(",2,3,,", layout="protocol") == 1 and hits("1,2,3,4", layout="protocol", match="exact") == 1
     assert hits("2,3,4,5", layout="protocol", match="exact") == 0
+
+
+def test_video_upload_list_delete(client, auth, env, monkeypatch):
+    from app.config import settings
+    monkeypatch.setattr(settings, "VIDEOS_DIR", str(env / "videos"))
+    monkeypatch.setattr(settings, "VIDEO_MAX_MB", 1)
+    monkeypatch.setattr(settings, "VIDEO_MIN_FREE_MB", 0)
+    data = b"\x00\x00\x00\x18ftypmp42" + b"x" * 5000
+    r = client.put("/api/v1/videos/gate test.mp4", headers={**auth, "Content-Type": "application/octet-stream"}, content=data)
+    assert r.status_code == 201, r.text
+    assert r.json()["path"] == "/data/videos/gate test.mp4" and r.json()["size"] == len(data)
+    assert (env / "videos" / "gate test.mp4").read_bytes() == data
+    assert client.put("/api/v1/videos/gate test.mp4", headers=auth, content=data).status_code == 409
+    for bad in ("../x.mp4", ".hidden.mp4", "a.exe", "a/b.mp4"):
+        assert client.put(f"/api/v1/videos/{bad}", headers=auth, content=data).status_code in (404, 422), bad
+    assert client.put("/api/v1/videos/big.mp4", headers=auth, content=b"x" * (1024 * 1024 + 1)).status_code == 413
+    assert not list((env / "videos").glob(".*part"))                 # no partial files left behind
+    listing = client.get("/api/v1/videos", headers=auth).json()
+    assert [v["name"] for v in listing["items"]] == ["gate test.mp4"] and listing["free_bytes"] > 0
+    assert client.delete("/api/v1/videos/gate test.mp4", headers=auth).json()["deleted"]
+    assert client.get("/api/v1/videos", headers=auth).json()["items"] == []

@@ -226,3 +226,25 @@ def test_one_face_event_per_track_with_its_largest_snapshot(tmp_path):
         assert ev["snapshot_path"].startswith("faces/door/")
     finally:
         w.finish(5)
+
+
+def test_copies_and_the_camera_limit(tmp_path):
+    """A source can be given several times (copy_of); video sources beyond the memory-safe maximum are refused."""
+    from types import SimpleNamespace as N
+    from app.config import parse_source
+    sys.modules.setdefault("pyds", N())                       # pipeline.py imports pyds; not needed for this check
+    try:
+        from app.pipeline import LprPipeline
+    except Exception:                                         # no GStreamer here: test the rule on its own
+        pytest.skip("GStreamer not available")
+    a = parse_source({"id": "cam", "type": "rtsp", "uri": "rtsp://h/1"}, {}, {})
+    b = parse_source({"id": "cam-2", "type": "rtsp", "uri": "rtsp://h/1", "copy_of": "cam"}, {}, {})
+    img = parse_source({"id": "jobs", "type": "image_job"}, {}, {})
+    assert b.copy_of == "cam"
+    fake = N(cfg=N(max_sources=2), configs={"cam": a, "cam-2": b, "jobs": img}, VIDEO_FREE=LprPipeline.VIDEO_FREE)
+    third = parse_source({"id": "cam-3", "type": "rtsp", "uri": "rtsp://h/1", "copy_of": "cam"}, {}, {})
+    with pytest.raises(ValueError, match="camera limit"):
+        LprPipeline._check_capacity(fake, third)
+    LprPipeline._check_capacity(fake, parse_source({"id": "jobs2", "type": "image_job"}, {}, {}))   # images don't count
+    fake.cfg.max_sources = 0
+    LprPipeline._check_capacity(fake, third)                  # 0 = no limit

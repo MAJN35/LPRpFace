@@ -14,7 +14,7 @@ from sqlalchemy import delete, func, select
 from .config import settings
 from .db import SessionLocal
 from .models import Event, User
-from .routes import api, faces, lists, system
+from .routes import api, faces, lists, system, videos
 from .security import hash_password
 
 log = logging.getLogger("lpr.backend")
@@ -79,3 +79,4 @@ app.include_router(api.router)
 app.include_router(system.router)
 app.include_router(lists.router)
 app.include_router(faces.router)
+app.include_router(videos.router)

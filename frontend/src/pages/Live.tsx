@@ -19,6 +19,12 @@ function LiveGrid({ cams }: { cams: Camera[] }) {
   const { t, num } = useI18n();
   const status = useApi<Status>("/status", 4000);       // model rate per camera on each tile
   const fpsOf = (id: string) => status.data?.inference?.sources?.[id]?.fps_out;
+  // detections start on the first camera that is actually delivering frames (not just the first in the list)
+  const liveIds = cams.filter((c) => ["live", "running"].includes(status.data?.inference?.sources?.[c.id]?.status ?? "")).map((c) => c.id);
+  const [picked, setPicked] = useState(false);
+  useEffect(() => {
+    if (!picked && liveIds.length && (!osdCam || !liveIds.includes(osdCam))) setOsdCam(liveIds[0]);
+  }, [liveIds.join(), picked]);
   const [osdCam, setOsdCam] = useState<string | null>(() => cams[0]?.id ?? null);
   const [layout, setLayout] = useState<"grid" | "single">("grid");
   const [focus, setFocus] = useState<string>(cams[0]?.id ?? "");
@@ -51,9 +57,9 @@ function LiveGrid({ cams }: { cams: Camera[] }) {
                   <span className="muted">{view === "osd" ? t("video.withOsd") : view === "raw" ? t("video.raw") : ""}</span>
                   {fpsOf(cam.id) != null && <span className="badge inset fps-badge">{t("live.modelFps", { fps: num(fpsOf(cam.id)!.toFixed(1)) })}</span>}</span>
                 <span className="row" role="group" aria-label={t("live.viewOf", { camera: cam.name })} style={{ gap: 6 }}>
-                  <Btn icon={ScanLine} className="btn-sm" aria-pressed={view === "osd"} onClick={() => setOsdCam(cam.id)}>{t("live.osd")}</Btn>
+                  <Btn icon={ScanLine} className="btn-sm" aria-pressed={view === "osd"} onClick={() => { setPicked(true); setOsdCam(cam.id); }}>{t("live.osd")}</Btn>
                   <Btn icon={Video} className="btn-sm" aria-pressed={view === "raw"} disabled={!canRaw}
-                    tip={canRaw ? undefined : t("live.rawOnlyNet")} onClick={() => osdCam === cam.id && setOsdCam(null)}>{t("live.raw")}</Btn>
+                    tip={canRaw ? undefined : t("live.rawOnlyNet")} onClick={() => { setPicked(true); if (osdCam === cam.id) setOsdCam(null); }}>{t("live.raw")}</Btn>
                 </span>
               </figcaption>
               {view ? <LiveVideo key={path} path={path} label={`${cam.name} ${view === "osd" ? t("video.withOsd") : t("video.raw")}`} />

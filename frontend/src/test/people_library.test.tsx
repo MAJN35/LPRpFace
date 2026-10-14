@@ -108,3 +108,36 @@ describe("Register people", () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([u]) => String(u).includes("/persons/4/merge"))).toBe(true));
   });
 });
+
+describe("Videos", () => {
+  it("cleans file names and sends loop/realtime only for file sources", async () => {
+    const { cleanName } = await import("../components/VideoUploads");
+    const { sourceBody } = await import("../pages/Settings");
+    expect(cleanName("My gate video?.MP4")).toBe("My gate video_.mp4");
+    expect(cleanName("../../etc/passwd.mov")).toBe("passwd.mov");
+    expect(cleanName("ورودی ۱.mkv")).toBe("ورودی ۱.mkv");
+    const base = { id: "v", name: "v", uri: "/data/videos/v.mp4", max_fps: "10", loop: true, fast: true };
+    expect(sourceBody({ ...base, type: "file" })).toEqual({ id: "v", name: "v", type: "file", uri: "/data/videos/v.mp4", max_fps: 10, loop: true, realtime: false });
+    expect(sourceBody({ ...base, type: "rtsp" })).toEqual({ id: "v", name: "v", type: "rtsp", uri: "/data/videos/v.mp4", max_fps: 10 });
+  });
+});
+
+describe("Source copies", () => {
+  it("adds the source, then its copies pointing at it", async () => {
+    const { Settings } = await import("../pages/Settings");
+    const posts: Record<string, unknown>[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init?: RequestInit) => {
+      if (init?.method === "POST" && String(url).endsWith("/cameras")) { posts.push(JSON.parse(String(init.body))); return json({}, 201); }
+      if (String(url).includes("/videos")) return json({ items: [], free_bytes: 1e10, max_bytes: 2e9 });
+      return json([]);
+    }));
+    render(<MemoryRouter><Settings role="admin" onTheme={() => undefined} /></MemoryRouter>);
+    await userEvent.type(await screen.findByLabelText("ID"), "gate");
+    await userEvent.type(screen.getByLabelText("URI"), "rtsp://cam/1");
+    await userEvent.clear(screen.getByLabelText("Copies"));
+    await userEvent.type(screen.getByLabelText("Copies"), "3");
+    await userEvent.click(screen.getByRole("button", { name: "Add source" }));
+    await waitFor(() => expect(posts).toHaveLength(3));
+    expect(posts.map((p) => [p.id, p.copy_of ?? null])).toEqual([["gate", null], ["gate-2", "gate"], ["gate-3", "gate"]]);
+  });
+});

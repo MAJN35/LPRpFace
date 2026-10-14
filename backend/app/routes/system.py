@@ -14,7 +14,8 @@ from ..models import Event, User
 from ..security import any_role, operator
 
 router = APIRouter(prefix="/api/v1")
-PUBLIC_SOURCE_KEYS = ("id", "name", "type", "uri", "enabled", "max_fps", "roi", "min_plate_px", "face_blur", "record")
+PUBLIC_SOURCE_KEYS = ("id", "name", "type", "uri", "enabled", "max_fps", "roi", "min_plate_px", "face_blur", "record",
+                      "copy_of")
 
 
 async def _inference(method: str, path: str, **kw) -> Any:

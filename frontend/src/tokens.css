@@ -280,6 +280,12 @@ nav.side a.active .nav-icon { transform: scale(1.08); }
 .recent-person-info { display: grid; gap: 3px; min-width: 0; justify-items: start; }
 .recent-person-info strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 
+/* settings: videos */
+.vid-progress { width: min(260px, 50vw); height: 10px; accent-color: var(--accent); }
+.copy-badge { margin-inline-start: 6px; }
+label.check { display: flex; flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text); }
+label.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
 
 /* Licence plate (plate/PlateView.tsx). A plate is white with black ink in both themes, like the real object. */

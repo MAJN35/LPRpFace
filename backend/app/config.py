@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     RETENTION_DAYS: int = 30                      # events + crops older than this are deleted
     RETENTION_INTERVAL_S: int = 3600
     MAX_UPLOAD_BYTES: int = 10 * 1024 * 1024
+    VIDEOS_DIR: str = "/data/videos"              # uploaded videos for file sources (shared data volume)
+    VIDEOS_SOURCE_PREFIX: str = "/data/videos"    # the same folder as the inference container sees it
+    VIDEO_MAX_MB: int = 2048                      # per video
+    VIDEO_MIN_FREE_MB: int = 4096                 # never fill the SD card: keep this much free after an upload
     # Face recognition (ArcFace R50 cosine similarity of L2-normalized embeddings)
     FACE_MATCH_THRESHOLD: float = 0.45            # same person at or above this
     FACE_NEW_PERSON_MIN_PX: int = 48              # an unmatched face starts a new person only if this wide (source px)

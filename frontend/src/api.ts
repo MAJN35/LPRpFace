@@ -42,7 +42,7 @@ export type Status = {
     sources?: Record<string, SourceHealth> };
   retention_days: number;
 };
-export type Camera = { id: string; name: string; type: string; uri: string; enabled: boolean; max_fps: number;
+export type Camera = { id: string; name: string; type: string; uri: string; enabled: boolean; max_fps: number; copy_of?: string | null;
   roi: number[][] | null; min_plate_px: number; face_blur: boolean; record: boolean };
 
 const TOKEN_KEY = "lpr.token";

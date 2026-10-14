@@ -61,6 +61,13 @@ def main() -> int:
              "precision": precision, "batch_profile": list(profile)}
     log.info("model %s (pt %s…), engine %s", ver, model["sha256"][:12], engine.name)
 
+    # uploaded videos (dashboard Settings -> Videos) land here; the backend (uid 10001) writes them, this container reads
+    videos = Path(env("LPR_VIDEOS_DIR", "/data/videos"))
+    try:
+        videos.mkdir(parents=True, exist_ok=True)
+        os.chown(videos, int(env("LPR_CROPS_UID", "10001")), int(env("LPR_CROPS_UID", "10001")))
+    except OSError as e:
+        log.warning("videos folder %s not prepared: %s", videos, e)
     store = RuntimeSources(env("LPR_RUNTIME_SOURCES", "/data/sources.runtime.json"))
     sources = store.apply(load_sources(), dict(os.environ))   # sources.yaml + changes made at runtime
     image_api = env("LPR_IMAGE_API", "1") == "1"
@@ -96,7 +103,8 @@ def main() -> int:
                         max_batch=profile[2], interval=interval, live=env("LPR_LIVE", "0") == "1",
                         media_rtsp=env("LPR_MEDIA_RTSP", "rtsp://media:8554"),
                         media_api=env("LPR_MEDIA_API", "http://media:9997"), exit_on_eos=exit_on_eos,
-                        restream=env("LPR_RESTREAM", "1") == "1")
+                        restream=env("LPR_RESTREAM", "1") == "1",
+                        max_sources=int(env("LPR_MAX_CAMERAS", "4").strip() or "4"))
     app = LprPipeline(app_cfg, sources, worker)
     def env_int(name, default):
         v = env(name).strip()

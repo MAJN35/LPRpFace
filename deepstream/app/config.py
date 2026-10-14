@@ -55,6 +55,8 @@ class Source:
     height: int = 0
     fps: int = 0
     files: List[str] = field(default_factory=list)  # resolved image list (image / image_folder)
+    copy_of: Optional[str] = None       # a copy of another source (same input, own id/events): for load tests and
+                                        # several views of one stream; network copies read the original's relay
 
     @property
     def is_live(self) -> bool:
