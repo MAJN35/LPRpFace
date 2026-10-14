@@ -16,7 +16,7 @@ def unit(v):
     return (v / np.linalg.norm(v)).astype(np.float32)
 
 
-def face(env, emb=None, cam="door", width=80, score=0.9, ts=None, snapshot=True):
+def face(env, emb=None, cam="door", width=80, score=0.9, ts=None, snapshot=True, yaw=0.0):
     eid = str(uuid.uuid4())
     rel = f"faces/{cam}/2026-10-13/{eid}.jpg"
     if snapshot:
@@ -28,7 +28,7 @@ def face(env, emb=None, cam="door", width=80, score=0.9, ts=None, snapshot=True)
           "timestamp": (ts or dt.datetime.now(dt.timezone.utc)).strftime("%Y-%m-%dT%H:%M:%S.000Z"), "track_id": 3,
           "face_bbox": [100, 100, 100 + width, 100 + width * 1.2], "frame_size": [1920, 1080], "det_score": 0.8,
           "frames_seen": 5, "snapshot_path": rel, "snapshot_face_box": [10, 10, 60, 70], "model": {"version": "v2"}}
-    return {"event": ev, "embed_model": "arcface_r50_w600k", "embed_det_score": score, "sharpness": 80.0,
+    return {"event": ev, "embed_model": "arcface_r50_w600k", "embed_det_score": score, "sharpness": 80.0, "yaw": yaw,
             "embedding_b64": base64.b64encode(emb.tobytes()).decode() if emb is not None else None}
 
 
@@ -164,3 +164,29 @@ def test_register_people_with_photos(client, auth, env):
         assert more["added"] == 1
     finally:
         F.EmbedFn = None
+
+
+def test_turned_faces_do_not_start_persons_and_same_visit_links(client, auth, env):
+    """A turned head gives a poor embedding: it must not become a new "Unknown" person; within the same visit (same
+    camera, a few seconds later) it is linked to the person just recognised."""
+    t0 = dt.datetime(2026, 10, 14, 12, 0, 0, tzinfo=dt.timezone.utc)
+    reza = unit(rng.normal(size=512))
+    first = client.post("/api/v1/ingest/faces", headers=KEY, json=face(env, reza, cam="hall", ts=t0)).json()
+    assert first["match"] == "new_person"
+    # same person, head turned: embedding only loosely similar (cos ~0.3), 4 s later on the same camera
+    o = rng.normal(size=512)
+    o = unit(o - (o @ reza) * reza)                       # orthogonal to reza
+    turned = unit(0.35 * reza + np.sqrt(1 - 0.35 ** 2) * o)
+    sim = float(turned @ reza)
+    assert 0.25 <= sim < 0.45, sim
+    r = client.post("/api/v1/ingest/faces", headers=KEY,
+                    json=face(env, turned, cam="hall", ts=t0 + dt.timedelta(seconds=4), yaw=0.45)).json()
+    assert r["person_id"] == first["person_id"] and r["match"] == "linked"
+    # a turned stranger with no recent recognised face: stored, but no new person
+    lone = client.post("/api/v1/ingest/faces", headers=KEY,
+                       json=face(env, unit(rng.normal(size=512)), cam="yard2", ts=t0, yaw=0.5)).json()
+    assert lone["person_id"] is None and lone["match"] == "none"
+    # long after the visit, the same loosely similar face is not linked
+    late = client.post("/api/v1/ingest/faces", headers=KEY,
+                       json=face(env, turned, cam="hall", ts=t0 + dt.timedelta(minutes=5), yaw=0.45)).json()
+    assert late["person_id"] is None

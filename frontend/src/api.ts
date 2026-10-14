@@ -16,7 +16,7 @@ export type PersonEntry = { id: number; full_name: string; notes: string; list_s
 // Face recognition: one face track with its snapshot and the person it was matched to (or none).
 export type FaceSummary = { id: string; timestamp: string; camera_id: string; track_id: number | null;
   person_id: number | null; person_name: string | null; person_auto: boolean; similarity: number | null;
-  match: "matched" | "new_person" | "manual" | "none"; det_score: number; list_status: ListStatus;
+  match: "matched" | "linked" | "new_person" | "manual" | "none"; det_score: number; list_status: ListStatus;
   has_snapshot: boolean; has_embedding: boolean };
 export type Snapshot = { kind: "plate" | "face"; id: string; timestamp: string; camera_id: string; list_status: ListStatus;
   person_id: number | null; person_name: string | null; person_auto?: boolean; plate_type?: string;

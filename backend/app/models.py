@@ -121,6 +121,7 @@ class FaceEvent(Base):
     embedding: Mapped[Optional[bytes]] = mapped_column(LargeBinary, nullable=True)   # float32 x 512, L2-normalized
     embed_det_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     sharpness: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    yaw: Mapped[Optional[float]] = mapped_column(Float, nullable=True)     # head turn (face service yaw_ratio)
     anchor: Mapped[bool] = mapped_column(Boolean, default=False)      # used as a reference for its person
     person_id: Mapped[Optional[int]] = mapped_column(ForeignKey("persons.id", ondelete="SET NULL"), nullable=True,
                                                      index=True)

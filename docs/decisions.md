@@ -568,3 +568,25 @@ Format: date, decision, reason, alternatives, source.
     `LPR_RESTREAM=1`.
   - **Browser:** the player retries quickly, keeps the last frame through short gaps, and shows "not available" only
     after 8 s.
+
+## 2026-10-14: Face OSD, fewer duplicate persons, live-view buffer (user report)
+
+- **Face OSD:** faces are drawn as an amber outline with a "face" label.
+  - `face_blur` is now **opt-in per camera** (default false in `Source` and `deploy/sources.yaml`); with it, faces get
+    a dark translucent tint instead of the solid black box.
+  - This reverses the M0 answer "face blur on", at the user's request ("it draws black filled rectangles on faces").
+- **Duplicate persons:** 24 persons (20 unnamed) from 41 face snapshots in 90 min. The NvSORT tracker (no appearance
+  model) lost faces that turned away for more than 10 missed frames (~2 s at v3m's ~4.6 fps per camera), and a
+  turned face's embedding does not match the frontal one, so it started a new "Unknown".
+  - The face service sends `yaw` (nose offset from the eye midpoint / eye distance, from the 5 landmarks).
+  - Only a frontal face (|yaw| ≤ 0.2, ≥ 48 px, landmark score ≥ 0.6) may start a person or become a reference.
+  - An unmatched face on the same camera within 10 s of a recognised one, and still ≥ 0.25 similar, is linked to that
+    person (`match = "linked"`); other unmatched turned faces stay unassigned.
+  - Tracker `maxShadowTrackingAge` 10 → 20 (~4 s).
+  - Existing duplicates are not merged automatically (person merge in the dashboard).
+  - Migration 0005 adds `face_events.yaw`.
+- **Live view gaps:** the detection stream publishes nothing for 3–5 s once a minute (the camera-network cut, then
+  reconnect).
+  - The HLS playlist keeps 7 segments (was 4) and the player holds ~4 s (`liveSyncDurationCount` 4), so it plays
+    through those gaps at ~2 s more delay.
+  - No drop was measured that coincided with detections in the watched window.

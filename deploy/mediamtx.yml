@@ -12,7 +12,7 @@ hlsAddress: :8888
 # LL-HLS parts made browsers stall; a few seconds of delay is the price. Muxers start on the first request
 # (hlsAlwaysRemux would answer the on-demand detection stream with 404).
 hlsVariant: fmp4
-hlsSegmentCount: 4
+hlsSegmentCount: 7               # keeps ~7 s of segments: players ride through the per-minute camera-network cuts
 hlsSegmentDuration: 1s
 hlsAlwaysRemux: no
 hlsAllowOrigin: ""

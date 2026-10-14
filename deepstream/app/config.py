@@ -44,7 +44,7 @@ class Source:
     max_fps: float = 0.0                # 0 = no limit
     roi: Optional[List[Tuple[float, float]]] = None  # normalized polygon (x, y in 0..1)
     min_plate_px: int = 60              # plate width (source px) below which reads are not voted/emitted
-    face_blur: bool = True
+    face_blur: bool = False             # mask faces on the detection stream (opt-in per camera since 2026-10-14)
     record: bool = False
     rtsp_transport: str = "tcp"         # tcp | udp
     loop: bool = False                  # files: loop for testing

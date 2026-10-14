@@ -1,5 +1,5 @@
 # Production sources. Placeholders: replace the host/path, put credentials in deploy/.env (CAM01_USER, ...).
-defaults: {max_fps: 10, min_plate_px: 60, face_blur: true, record: false, rtsp_transport: tcp}
+defaults: {max_fps: 10, min_plate_px: 60, face_blur: false, record: false, rtsp_transport: tcp}   # face_blur: true per camera masks faces on the live view
 sources:
   - id: cam-01
     name: "Camera 1 (1920x1080 H.264 25 fps)"

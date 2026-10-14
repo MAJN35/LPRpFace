@@ -65,6 +65,7 @@ class FaceIngest(BaseModel):
     embed_det_score: Optional[float] = None
     landmarks: Optional[list] = None
     sharpness: Optional[float] = None
+    yaw: Optional[float] = None
 
 
 class FaceOut(BaseModel):
@@ -191,8 +192,12 @@ def _unlink(rel: Optional[str]) -> bool:
 # --- ingest ------------------------------------------------------------------------------------------------------------
 @router.post("/ingest/faces", dependencies=[Depends(ingest_key)])
 async def ingest_face(body: FaceIngest, db: AsyncSession = Depends(get_db)):
-    """Idempotent by event_id. Matching: closest person >= threshold -> that person (the face becomes one of their
-    references while they have fewer than FACE_MAX_ANCHORS); else, for a good-quality face, a new unnamed person."""
+    """Idempotent by event_id. Matching, in order:
+      1. closest person >= FACE_MATCH_THRESHOLD -> that person (a good frontal face also becomes a reference);
+      2. same visit: a recognised face on the same camera within FACE_LINK_S whose embedding is >= FACE_LINK_MIN_SIM
+         similar -> that person (a turned head breaks the track and the embedding, not the identity);
+      3. a good frontal face (size, landmark confidence, |yaw| <= FACE_FRONTAL_MAX_YAW) -> a new unnamed person;
+      4. otherwise stored unassigned (turned, small or blurry faces never start a person)."""
     e = body.event
     if await db.get(FaceEvent, e.event_id) is not None:
         return {"event_id": e.event_id, "created": False}
@@ -202,16 +207,21 @@ async def ingest_face(body: FaceIngest, db: AsyncSession = Depends(get_db)):
                   frame_size=e.frame_size, det_score=e.det_score, frames_seen=e.frames_seen,
                   snapshot_path=e.snapshot_path or None, embed_model=body.embed_model,
                   embedding=emb.astype(np.float32).tobytes() if emb is not None else None,
-                  embed_det_score=body.embed_det_score, sharpness=body.sharpness)
+                  embed_det_score=body.embed_det_score, sharpness=body.sharpness, yaw=body.yaw)
     person: Optional[Person] = None
     if emb is not None:
-        good = _width(e.face_bbox) >= settings.FACE_NEW_PERSON_MIN_PX and \
+        frontal = body.yaw is not None and abs(body.yaw) <= settings.FACE_FRONTAL_MAX_YAW
+        good = frontal and _width(e.face_bbox) >= settings.FACE_NEW_PERSON_MIN_PX and \
             (body.embed_det_score or 0.0) >= settings.FACE_NEW_PERSON_MIN_SCORE
         pid, sim = best_match(emb, await gallery.get(db))
+        link = None if pid is not None and sim >= settings.FACE_MATCH_THRESHOLD else await _same_visit(db, e, emb)
         if pid is not None and sim >= settings.FACE_MATCH_THRESHOLD:
             person = await db.get(Person, pid)
             f.person_id, f.similarity, f.match = pid, round(sim, 4), "matched"
             f.anchor = good and await _anchors(db, pid) < settings.FACE_MAX_ANCHORS
+        elif link is not None:
+            person = await db.get(Person, link[0])
+            f.person_id, f.similarity, f.match = link[0], round(link[1], 4), "linked"
         elif good:
             person = Person(full_name="", auto_named=True, list_status="unknown")
             db.add(person)
@@ -228,6 +238,23 @@ async def ingest_face(body: FaceIngest, db: AsyncSession = Depends(get_db)):
     if out["list_status"] == "blocklist":
         broadcaster.publish({"type": "face_alert", "face": out})
     return {"event_id": e.event_id, "created": True, "person_id": f.person_id, "match": f.match}
+
+
+async def _same_visit(db: AsyncSession, e: FaceEventIn, emb: np.ndarray) -> Optional[Tuple[int, float]]:
+    """The person of a recent recognised face on the same camera (FACE_LINK_S) that this face still resembles."""
+    since = e.timestamp - dt.timedelta(seconds=settings.FACE_LINK_S)
+    rows = (await db.execute(select(FaceEvent.person_id, FaceEvent.embedding).where(
+        FaceEvent.camera_id == e.camera_id, FaceEvent.person_id.is_not(None), FaceEvent.ts >= since,
+        FaceEvent.ts <= e.timestamp + dt.timedelta(seconds=1)).order_by(FaceEvent.ts.desc()).limit(20))).all()
+    best: Optional[Tuple[int, float]] = None
+    for pid, b in rows:
+        v = decode(b)
+        if v is None:
+            continue
+        sim = float(v @ emb)
+        if sim >= settings.FACE_LINK_MIN_SIM and (best is None or sim > best[1]):
+            best = (pid, sim)
+    return best
 
 
 # --- faces -------------------------------------------------------------------------------------------------------------

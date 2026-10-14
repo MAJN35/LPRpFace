@@ -113,6 +113,15 @@ def pick_face(boxes: np.ndarray, kps: np.ndarray, scores: np.ndarray, hint) -> O
     return int(np.argmax(scores))
 
 
+def yaw_ratio(lmk) -> float:
+    """Head turn from the 5 landmarks (eyes, nose, mouth corners): the nose's horizontal offset from the eye midpoint
+    divided by the eye distance. ~0 frontal; |0.3| and more is a clearly turned face (its embedding is a poor match
+    for the person's frontal faces). Large when the eyes collapse together in a profile."""
+    (lx, ly), (rx, ry), (nx, _ny) = lmk[0], lmk[1], lmk[2]
+    eye = float(np.hypot(rx - lx, ry - ly))
+    return float((nx - (lx + rx) / 2) / eye) if eye > 1e-3 else 9.0
+
+
 def l2(v: np.ndarray) -> np.ndarray:
     n = float(np.linalg.norm(v))
     return v / n if n > 0 else v
@@ -165,6 +174,7 @@ class FaceEmbedder:
         emb = l2(self.rec.run(None, {self.rec.get_inputs()[0].name: rb})[0][0].astype(np.float32))
         sharp = float(cv2.Laplacian(cv2.cvtColor(aligned, cv2.COLOR_BGR2GRAY), cv2.CV_64F).var())
         return {"embedding": emb, "det_score": float(scores[k]), "landmarks": lmk.round(1).tolist(), "sharpness": sharp,
+                "yaw": round(yaw_ratio(lmk), 3),
                 "box": (boxes[k] / s).round(1).tolist(), "faces": int(len(boxes))}
 
 
@@ -249,7 +259,7 @@ def build_body(event: Dict[str, Any], result: Dict[str, Any]) -> Dict[str, Any]:
     return {"event": event, "embed_model": EMBED_MODEL,
             "embedding_b64": base64.b64encode(np.asarray(emb, np.float32).tobytes()).decode() if emb is not None else None,
             "embed_det_score": result.get("det_score"), "landmarks": result.get("landmarks"),
-            "sharpness": result.get("sharpness")}
+            "sharpness": result.get("sharpness"), "yaw": result.get("yaw")}
 
 
 class Processor:

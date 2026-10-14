@@ -487,16 +487,24 @@ class LprPipeline:
                     tp.x_offset = int(max(x0, r.left))
                     tp.y_offset = int(max(y0, r.top - unit * 2.1))
             elif om.class_id == C.FACE_ID:
-                tp.display_text = ""
+                # faces: amber outline with a small label; with face_blur (per camera, opt-in) a dark translucent
+                # tint over the face instead of a solid black box
+                r.border_width = max(2, unit // 8)
+                r.border_color.set(*self.FACE_RGBA)
                 if sb.src.face_blur:
                     self.stats["faces_masked"] = self.stats.get("faces_masked", 0) + 1
                     r.has_bg_color = 1
-                    r.bg_color.set(0.1, 0.1, 0.1, 1.0)
-                    r.border_width = 0
+                    r.bg_color.set(0.05, 0.07, 0.10, 0.82)
                 else:
-                    r.border_width = max(2, unit // 8)
-                    r.border_color.set(*self.FACE_RGBA)
                     r.has_bg_color = 0
+                tp.display_text = " face "
+                tp.font_params.font_name = "Sans"
+                tp.font_params.font_size = max(9, int(unit * 0.7))
+                tp.font_params.font_color.set(0.1, 0.1, 0.1, 1.0)
+                tp.set_bg_clr = 1
+                tp.text_bg_clr.set(*self.FACE_RGBA)
+                tp.x_offset = int(max(x0, r.left))
+                tp.y_offset = int(max(y0, r.top - unit * 1.6))
             else:
                 r.border_width = 0
                 tp.display_text = ""

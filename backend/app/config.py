@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     FACE_NEW_PERSON_MIN_PX: int = 48              # an unmatched face starts a new person only if this wide (source px)
     FACE_NEW_PERSON_MIN_SCORE: float = 0.6        # ... and the landmark detector is this confident
     FACE_MAX_ANCHORS: int = 30                    # reference faces kept per person
+    FACE_FRONTAL_MAX_YAW: float = 0.2             # |yaw| above this = turned face: never starts a person or a reference
+    FACE_LINK_S: float = 10.0                     # an unmatched face this soon after a recognised one on the same camera
+    FACE_LINK_MIN_SIM: float = 0.25               # ... and at least this similar is the same visit: linked to that person
     FACE_SERVICE_URL: str = "http://face:8095"    # face service: embeddings of registration photos (internal)
 
     @property

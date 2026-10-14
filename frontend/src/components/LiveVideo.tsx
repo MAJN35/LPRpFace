@@ -23,7 +23,8 @@ export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label:
       hls = new HlsImpl({
         // The gateway may need several seconds before the first segments of a stream exist (detection stream at the
         // inference rate): generous timeouts instead of hls.js' 10 s defaults, which made browsers give up.
-        lowLatencyMode: false, liveSyncDurationCount: 2, manifestLoadingTimeOut: 30000, manifestLoadingMaxRetry: 2,
+        lowLatencyMode: false, liveSyncDurationCount: 4, liveMaxLatencyDurationCount: 10,  // ~4 s buffer: rides through 3-5 s gaps
+        manifestLoadingTimeOut: 30000, manifestLoadingMaxRetry: 2,
         levelLoadingTimeOut: 30000, fragLoadingTimeOut: 30000,
         // Camera connections on this site are cut once a minute (network); the gateway's stream is back after a few
         // seconds. Retry playlists and segments quickly instead of failing.

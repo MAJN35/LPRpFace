@@ -1,7 +1,7 @@
 %YAML:1.0
 # NvSORT (DeepStream 6.3 sample config_tracker_NvSORT.yml) tuned for small, fast plates at 8-10 fps.
 # Changes from the sample: probationAge 5 -> 1 (ids from the first frames), maxShadowTrackingAge 26 -> 10
-# (~1 s at 10 fps), minMatchingScore4Iou 0.2159 -> 0.1 and minMatchingScore4SizeSimilarity 0.4019 -> 0.3 (plates
+# (~1 s at 10 fps; 20 since 2026-10-14, ~4 s at v3m's rate), minMatchingScore4Iou 0.2159 -> 0.1 and minMatchingScore4SizeSimilarity 0.4019 -> 0.3 (plates
 # move far between frames at low fps; the Kalman prediction carries the association), minDetectorConfidence 0.3.
 BaseConfig:
   minDetectorConfidence: 0.3
@@ -11,7 +11,7 @@ TargetManagement:
   minIouDiff4NewTarget: 0.5780
   minTrackerConfidence: 0.8216
   probationAge: 1
-  maxShadowTrackingAge: 10
+  maxShadowTrackingAge: 20       # ~4 s at ~4.6 inferred fps/camera: a face that turns away keeps its track
   earlyTerminationAge: 1
 TrajectoryManagement:
   useUniqueID: 0

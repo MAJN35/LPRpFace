@@ -103,3 +103,11 @@ def test_embed_photo_returns_embedding_and_face_crop():
     assert status == 200 and body["faces"] == 2 and body["size"] == [160, 200]
     crop = cv2.imdecode(np.frombuffer(base64.b64decode(body["crop_jpeg_b64"]), np.uint8), cv2.IMREAD_COLOR)
     assert crop.shape[0] > 50 and len(np.frombuffer(base64.b64decode(body["embedding_b64"]), np.float32)) == 512
+
+
+def test_yaw_ratio_separates_frontal_and_turned_faces():
+    frontal = [[40, 50], [70, 50], [55, 65], [43, 80], [67, 80]]
+    turned = [[40, 50], [62, 50], [64, 65], [43, 80], [60, 80]]     # nose past the right eye: head turned
+    assert abs(F.yaw_ratio(frontal)) < 0.05
+    assert F.yaw_ratio(turned) > 0.3
+    assert F.build_body(EVENT, {"embedding": None, "yaw": 0.4})["yaw"] == 0.4
