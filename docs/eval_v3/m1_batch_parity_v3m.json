@@ -1,0 +1,22 @@
+{
+  "images": 16,
+  "ref_detections": 51,
+  "sizes": {
+    "1": {
+      "max_abs_output_diff": 0.00115966796875,
+      "matched": 51,
+      "unmatched_ref": 0,
+      "unmatched_cand": 0,
+      "images_with_differences": 0,
+      "identical": true
+    },
+    "2": {
+      "max_abs_output_diff": 0.00115966796875,
+      "matched": 51,
+      "unmatched_ref": 0,
+      "unmatched_cand": 0,
+      "images_with_differences": 0,
+      "identical": true
+    }
+  }
+}

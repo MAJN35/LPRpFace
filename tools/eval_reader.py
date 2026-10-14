@@ -120,8 +120,11 @@ def main(argv=None) -> int:
             kind, ok, detail = judge(e, k, gt, read)
             split = "real" if real else "synthetic"
             group = e["group"].split(":")[0] if not real else e["group"]
+            # letters that are hard for the model (Te, Eyn, Alef): one key per letter on the plate, and "any of them"
+            hard = [x for x in ("Te", "Eyn", "Alef") if x in (gt.get("letters") or [])]
+            letter_keys = [(split, "letter", x, kind) for x in hard] + ([(split, "letter", "Te|Eyn|Alef", kind)] if hard else [])
             for key in [(split, "all", kind), (split, "group", group, kind), (split, "type", e["plate_type"], kind),
-                        (split, "detected", kind)]:
+                        (split, "detected", kind)] + letter_keys:
                 if key[1] == "detected":
                     stats[key][0] += read is not None
                 else:
@@ -142,7 +145,7 @@ def main(argv=None) -> int:
                 c, t = stats[(split, "all", kind)]
                 d = stats[(split, "detected", kind)]
                 print(f"  {kind:10s} exact {pct(c, t):22s} plate detected {pct(*d)}")
-        for dim in ("group", "type"):
+        for dim in ("group", "type", "letter"):
             rows = sorted(k for k in stats if k[0] == split and k[1] == dim)
             print(f"  by {dim}: " + "; ".join(f"{k[2]}/{k[3]} {pct(*stats[k])}" for k in rows))
     for err in errors[: a.errors]:

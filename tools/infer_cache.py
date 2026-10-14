@@ -65,13 +65,19 @@ def main(argv=None) -> int:
     ap.add_argument("--pad", type=int, default=PAD_ULTRALYTICS, help="letterbox pad value (114 Ultralytics, 0 DeepStream)")
     ap.add_argument("--batch", type=int, default=1)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--glob", help="instead of the manifest: these images (relative to --set), sorted, first --n "
+                    "(the M1 parity selection: 'images/test/*.jpg' --n 16)")
+    ap.add_argument("--n", type=int, default=16)
     ap.add_argument("--threads", type=int, default=0)
     a = ap.parse_args(argv)
 
     import cv2
 
-    manifest = json.loads((a.set / "manifest.json").read_text(encoding="utf-8"))
-    files = [m["file"] for m in manifest][: a.limit or None]
+    if a.glob:
+        files = [str(p.relative_to(a.set)) for p in sorted(a.set.glob(a.glob))][: a.n]
+    else:
+        manifest = json.loads((a.set / "manifest.json").read_text(encoding="utf-8"))
+        files = [m["file"] for m in manifest][: a.limit or None]
     a.out.parent.mkdir(parents=True, exist_ok=True)
     done = set()
     if a.out.exists():

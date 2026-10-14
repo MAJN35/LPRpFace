@@ -29,7 +29,7 @@
       "type": "object", "additionalProperties": false,
       "required": ["version", "sha256", "engine_sha256", "precision", "batch_profile"],
       "properties": {
-        "version": {"enum": ["v1", "v2"]},
+        "version": {"type": "string", "pattern": "^v[0-9][a-z0-9_]{0,6}$"},
         "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
         "engine_sha256": {"type": ["string", "null"]},
         "precision": {"enum": ["fp16", "fp32", "int8"]},

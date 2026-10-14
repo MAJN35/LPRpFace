@@ -521,3 +521,24 @@ Format: date, decision, reason, alternatives, source.
 - **Measured on the board** (phone off, cam-02 placeholder reconnecting): a looping test video plus one copy ran
   at 1.4 inferences/s together after a slow start. Dead cameras being rebuilt every few seconds hold up the shared
   batch; disabling sources that cannot connect is recommended.
+
+## 2026-10-14: Candidate models v3m (YOLO12m) and v3_26n (YOLO26n) — v2 stays
+
+- **Rule (user):** keep v2 unless a candidate is at least as accurate on the 2-camera test stream.
+- **v3m vs v2 on the 2-camera test stream:**
+  - production event policy: 79.8 % vs 89.1 %;
+  - M8 policy: 90.5 % vs 96.7 %.
+
+  v3m is better on the still test set (real overall 73.2 % vs 70.6 %) and 3× faster: 4.9 vs 1.6 fps per camera,
+  peak RAM 4.6 vs 5.5 GB. **v2 stays in production.** Full table: `docs/eval_v3/report.md`.
+- **v3_26n:** TensorRT 8.5 parsed it, but the FP16 build hung in tactic timing at the attention block `model.16`
+  (26 min, no progress). It was stopped as instructed. A fixed-960 copy of its ONNX is verified and ready to try.
+- **Tooling:**
+  - The event schema accepts any model folder name (`^v[0-9][a-z0-9_]{0,6}$`) instead of only v1/v2.
+  - `exp_grid.py --model/--profile/--m8-policy`.
+  - `eval_reader` reports hard letters (Te, Eyn, Alef).
+  - `infer_cache --glob/--n` and `parity.py --ref-cache` compare against a static ONNX when the `.pt` cannot be loaded.
+  - `check_model` ignores a delivered `*_dynbatch.onnx`.
+- **Finding:** the production event policy (2026-10-13) costs 7–11 points on the back-to-back test clips, because a
+  track continues across a cut. A shorter track timeout with min-frames and plausibility kept is a candidate for a
+  measured follow-up.

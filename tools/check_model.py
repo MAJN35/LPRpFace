@@ -176,7 +176,9 @@ def main(argv=None) -> int:
     if a.skip_onnx:
         print("onnx: SKIPPED (--skip-onnx)")
         return EXIT_OK
-    onnx_files = sorted(d.glob("*.onnx"))
+    # The static ONNX is the model reference; a delivered *_dynbatch.onnx is its variable-batch variant (checked by
+    # tools/compare_onnx_batch.py against this one), not a second model.
+    onnx_files = sorted(p for p in d.glob("*.onnx") if not p.name.endswith("_dynbatch.onnx"))
     if len(onnx_files) != 1:
         print(f"FAIL onnx: expected exactly one .onnx in {d}, found {[p.name for p in onnx_files]}")
         return EXIT_ONNX

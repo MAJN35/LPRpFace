@@ -41,6 +41,10 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--n", type=int, required=True)
     ap.add_argument("--max-fps", type=float, default=10)
+    ap.add_argument("--model", default="v2", help="model folder under models/ (v2, v3m, ...)")
+    ap.add_argument("--profile", default="1,2,4", help="engine batch profile min,opt,max (must exist in engine_cache)")
+    ap.add_argument("--m8-policy", action="store_true", help="event policy of the M8 runs: track timeout 1.5 s, one frame "
+                    "per track, invalid reads emitted (the default is the current production policy)")
     ap.add_argument("--interval", type=int, default=0)
     ap.add_argument("--roi", action="store_true")
     ap.add_argument("--seconds", type=int, default=150)
@@ -50,7 +54,7 @@ def main(argv=None) -> int:
     side = json.loads(SIDE.read_text())
     gt = {c["gt_string_latin"] for c in side["clips"]}
     name = f"lpr-ds-grid-{a.n}"
-    tag = f"n{a.n}_mf{a.max_fps:g}_i{a.interval}{'_roi' if a.roi else ''}"
+    tag = f"{a.model}{'_m8policy' if a.m8_policy else ''}_n{a.n}_mf{a.max_fps:g}_i{a.interval}{'_roi' if a.roi else ''}"
     out = REPO / "out" / "grid" / tag
     out.mkdir(parents=True, exist_ok=True)
     srcs = []
@@ -67,7 +71,9 @@ def main(argv=None) -> int:
     env = dict(os.environ, LPR_DOCKER_NETWORK="lpr", LPR_DOCKER_ARGS=f"--name {name}")
     log = open(out / "app.log", "w")
     app = subprocess.Popen(["deepstream/run.sh", "env", "LPR_EVENT_SINKS=jsonl", f"LPR_SOURCES_FILE=/work/{rel}/sources.yaml",
-                            "ENGINE_DIR=/engines", "META_DIR=/work/models/v2", "ONNX_DIR=/work/models/v2/export",
+                            "ENGINE_DIR=/engines", f"META_DIR=/work/models/{a.model}", f"ONNX_DIR=/work/models/{a.model}/export",
+                            f"MODEL_VERSION={a.model}", f"BATCH_PROFILE={a.profile}", "LPR_FACES=0", "LPR_VIDEOS_DIR=/tmp/videos",
+                            *(["LPR_TRACK_TIMEOUT_S=1.5", "LPR_MIN_TRACK_FRAMES=1", "LPR_EMIT_INVALID=1"] if a.m8_policy else []),
                             f"LPR_EVENTS_JSONL=/work/{rel}/events.jsonl", f"LPR_CROPS_DIR=/work/{rel}/crops",
                             f"LPR_JOBS_DIR=/work/{rel}/jobs", "LPR_IMAGE_API=0", "LPR_DEDUP_S=5",
                             f"LPR_INTERVAL={a.interval}", "python3", "-m", "app.main"],
@@ -112,7 +118,7 @@ def main(argv=None) -> int:
     ram = [int(m.group(1)) for m in re.finditer(r"RAM (\d+)/", (a.log / "tegrastats.log").read_text())] \
         if (a.log / "tegrastats.log").exists() else []
     acc = [p["correct"] / appearances for p in per.values()] if appearances else [0]
-    res = {"config": tag, "sources": a.n, "max_fps": a.max_fps, "interval": a.interval, "roi": a.roi,
+    res = {"config": tag, "model": a.model, "profile": a.profile, "policy": "m8" if a.m8_policy else "production", "sources": a.n, "max_fps": a.max_fps, "interval": a.interval, "roi": a.roi,
            "run_seconds": round(run_s), "window_utc": [round(start), round(end)], "fps_out_per_source_mean": round(statistics.mean(p["fps_out"] for p in per.values()), 2),
            "fps_out_per_source_min": min(p["fps_out"] for p in per.values()),
            "accuracy_mean": round(statistics.mean(acc), 3), "accuracy_min": round(min(acc), 3),

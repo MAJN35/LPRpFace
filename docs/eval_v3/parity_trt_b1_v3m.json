@@ -1,0 +1,34 @@
+{
+ "ref_dets": 51,
+ "matched": 50,
+ "rate": 0.9803921568627451,
+ "extra_cand": 0,
+ "class_shifts": {},
+ "max_score_diff": 0.006930000000000103,
+ "mean_score_diff": 0.0017308000000000013,
+ "unmatched_by_class": {
+  "face": 1
+ },
+ "model": "v3m",
+ "images": 16,
+ "files": [
+  "images/test/fc_000058.jpg",
+  "images/test/fc_000338.jpg",
+  "images/test/fc_000359.jpg",
+  "images/test/fc_000388.jpg",
+  "images/test/fc_000430.jpg",
+  "images/test/fc_001200.jpg",
+  "images/test/fc_001264.jpg",
+  "images/test/fc_002219.jpg",
+  "images/test/fc_002346.jpg",
+  "images/test/fc_002662.jpg",
+  "images/test/fc_002664.jpg",
+  "images/test/fc_002810.jpg",
+  "images/test/fc_003095.jpg",
+  "images/test/fc_003224.jpg",
+  "images/test/fc_003304.jpg",
+  "images/test/fc_003426.jpg"
+ ],
+ "candidate": "TensorRT FP16 engine, batch 1",
+ "reference": "static ONNX, onnxruntime CPU FP32"
+}

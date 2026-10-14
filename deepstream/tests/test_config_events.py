@@ -109,7 +109,7 @@ def test_schema_rejects_credentials_and_bad_fields(tmp_path):
     [src] = load_sources(write_yaml(tmp_path, "sources:\n  - {id: cam-01, type: rtsp, uri: 'rtsp://h/x'}\n"), env={})
     ev = _track_event(src)
     for mutate in (lambda e: e["source"].update(uri_redacted="rtsp://u:p@h/x"), lambda e: e.update(extra=1),
-                   lambda e: e.update(event_type="plate.seen"), lambda e: e["model"].update(version="v3")):
+                   lambda e: e.update(event_type="plate.seen"), lambda e: e["model"].update(version="v3 m")):
         bad = json.loads(json.dumps(ev))
         mutate(bad)
         with pytest.raises(jsonschema.ValidationError):

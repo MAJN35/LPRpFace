@@ -142,6 +142,9 @@ def main(argv=None) -> int:
     ap.add_argument("--sample", type=int, default=24)
     ap.add_argument("--cand-cache", type=Path, help="compare against this detection cache instead of ONNX CPU")
     ap.add_argument("--cand-name", default="onnxruntime CPU FP32 + lpr_reader.decode")
+    ap.add_argument("--ref-cache", type=Path, help="reference = this detection cache (e.g. the static ONNX on CPU) instead "
+                    "of Ultralytics on the .pt; needs --cand-cache; compares the images both caches contain")
+    ap.add_argument("--ref-name", default="Ultralytics .pt")
     ap.add_argument("--json-out", type=Path)
     ap.add_argument("--min-rate", type=float, default=0.98)
     a = ap.parse_args(argv)
@@ -153,11 +156,18 @@ def main(argv=None) -> int:
         files = [f for f in stratified_sample(manifest, a.sample) if f in cand]
     else:
         files = stratified_sample(manifest, a.sample)
-    ref = run_reference(next(a.model_dir.glob("*.pt")), files, CACHE / f"{ver}_pt_ref.jsonl")
+    if a.ref_cache:
+        if not a.cand_cache:
+            ap.error("--ref-cache needs --cand-cache")
+        ref = load_cache(a.ref_cache)
+        files = sorted(set(ref) & set(cand))
+    else:
+        ref = run_reference(next(a.model_dir.glob("*.pt")), files, CACHE / f"{ver}_pt_ref.jsonl")
     if not a.cand_cache:
         cand = run_onnx(next(a.model_dir.glob("*.onnx")), files)
     res = compare(ref, cand, files)
-    res.update({"model": ver, "images": len(files), "files": files, "candidate": a.cand_name})
+    res.update({"model": ver, "images": len(files), "files": files, "candidate": a.cand_name,
+                "reference": a.ref_name if a.ref_cache else "Ultralytics .pt"})
     ok = res["rate"] >= a.min_rate
     print(json.dumps({k: v for k, v in res.items() if k != "files"}, indent=1))
     print(f"RESULT: {'OK' if ok else 'FAIL'} ({100 * res['rate']:.2f} % matched, threshold {100 * a.min_rate:.0f} %)")

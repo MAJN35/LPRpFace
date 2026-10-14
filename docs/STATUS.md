@@ -224,6 +224,12 @@ Decisions needed: none (all decided by the user on 2026-10-13)
 - **Measured on the board:** phone 30 fps in, 3.5 inferred/s, about 1.1–1.3 GB RAM available, face service about
   270 MB. Face matching on real faces has not been measured yet.
 
+## Candidate models (2026-10-14)
+
+v3m (YOLO12m) and v3_26n (YOLO26n) were evaluated against v2 (`docs/eval_v3/report.md`). v2 stays: v3m is 3× faster
+but less accurate on the 2-camera stream (79.8 % vs 89.1 %). v3_26n's TensorRT 8.5 build hung; a fixed-960 ONNX is
+ready to try.
+
 ## Open items / PENDING (all)
 
 1. USB and CSI cameras: not attached; configs and steps in the M4 report.
@@ -244,3 +250,5 @@ Decisions needed: none (all decided by the user on 2026-10-13)
     these cameras. ArcFace/SCRFD weights are non-commercial research only (licence needed for commercial use).
 12. OS notifications need the dashboard over https://<jetson>:8443 with the self-signed certificate accepted once per
     device (or deploy/certs/tls.crt installed as trusted).
+13. v3_26n: TensorRT 8.5 build hung at the attention block; retry with models/v3_26n/export_fixed (height/width pinned to 960).
+14. Event policy vs back-to-back test clips: a shorter track timeout (keeping min-frames/plausibility) is to be measured.
