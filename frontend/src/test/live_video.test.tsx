@@ -1,6 +1,6 @@
 import { act, screen } from "@testing-library/react";
 import { render } from "./render";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { LiveVideo } from "../components/LiveVideo";
 
 type Handler = (e: string, d: { fatal: boolean }) => void;
@@ -32,8 +32,13 @@ describe("LiveVideo", () => {
     expect(screen.getByRole("status")).toHaveTextContent("Connecting");
     act(() => inst.handlers.f("f", { fatal: false }));
     expect(screen.queryByRole("status")).toBeNull();
+    // a short outage after playing keeps the last frame; "not available" only after 8 s without the stream
+    vi.useFakeTimers();
     act(() => inst.handlers.e("e", { fatal: true }));
+    expect(screen.queryByRole("status")).toBeNull();
+    act(() => { vi.advanceTimersByTime(8100); });
     expect(screen.getByRole("status")).toHaveTextContent("not available");
+    vi.useRealTimers();
   });
   it("explains when the browser cannot play HLS", () => {
     const { FakeHls } = fakeHls(false);

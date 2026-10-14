@@ -22,9 +22,9 @@ services:
     logging: *logging
     command: ["python3", "-m", "app.main"]
     environment:
-      MODEL_VERSION: ${MODEL_VERSION:-v2}
+      MODEL_VERSION: ${MODEL_VERSION:-v3m}
       PRECISION: ${PRECISION:-fp16}
-      BATCH_PROFILE: ${BATCH_PROFILE:-1,2,4}
+      BATCH_PROFILE: ${BATCH_PROFILE:-1,2,2}
       LPR_EVENT_SINKS: ${LPR_EVENT_SINKS:-jsonl,kafka}
       KAFKA_BROKERS: kafka:9092
       KAFKA_TOPIC: lpr.plate.events
@@ -33,6 +33,7 @@ services:
       LPR_JOBS_DIR: /data/jobs
       LPR_INTERVAL: ${LPR_INTERVAL:-0}
       LPR_LIVE: ${LPR_LIVE:-1}                       # live view: raw camera + detection overlay through "media"
+      LPR_RESTREAM: ${LPR_RESTREAM:-1}               # 1: read network cameras through the gateway; 0: directly
       LPR_MEDIA_RTSP: rtsp://media:8554
       LPR_MEDIA_API: http://media:9997
       LPR_DEDUP_S: ${LPR_DEDUP_S:-30}
@@ -46,7 +47,7 @@ services:
       LPR_TARGET_FPS: ${LPR_TARGET_FPS:-8}
       LPR_SOURCES_FILE: /config/sources.yaml
       ENGINE_DIR: /engines
-      ONNX_DIR: /models/${MODEL_VERSION:-v2}/export
+      ONNX_DIR: /models/${MODEL_VERSION:-v3m}/export
       # camera credentials referenced as ${VAR} in sources.yaml
       CAM01_USER: ${CAM01_USER:-}
       CAM01_PASS: ${CAM01_PASS:-}

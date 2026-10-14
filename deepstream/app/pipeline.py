@@ -107,7 +107,8 @@ class LprPipeline:
         # per source: inferred frames (for fps_out) and recent latencies muxer arrival -> after tracker (ms)
         self.inferred: Dict[str, int] = collections.Counter()
         self.latency_ms: Dict[str, collections.deque] = collections.defaultdict(lambda: collections.deque(maxlen=600))
-        self.stats = {"frames_inferred": 0, "worker_dropped": 0, "inference_fps": 0.0}
+        self.stats = {"frames_inferred": 0, "worker_dropped": 0, "inference_fps": 0.0, "batches": 0, "batch_frames": 0,
+                      "batch_full": 0}
         self._fps_hist: collections.deque = collections.deque(maxlen=6)   # (time, frames_inferred) every 2 s
         self._build()
         for s in sources:
@@ -162,7 +163,7 @@ class LprPipeline:
         for a, b in zip(chain, chain[1:]):
             if not a.link(b):
                 raise RuntimeError(f"cannot link {a.get_name()} -> {b.get_name()}")
-        self.pgie.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._batch_probe(self._detections))
+        self.pgie.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._batch_probe(self._detections, count_batches=True))
         q3.get_static_pad("src").add_probe(Gst.PadProbeType.BUFFER, self._batch_probe(self._frame))
         bus = self.pipeline.get_bus()
         bus.add_signal_watch()
@@ -383,12 +384,17 @@ class LprPipeline:
     # A (nvinfer src): every detection with its 48 class scores. The tracker drops targets in their first
     # (tentative) frame, so detections must be read before it - image frames are always first frames.
     # B (tracker src): track ids are joined to A's detections by box; crops; hand-off to the worker.
-    def _batch_probe(self, handler):
+    def _batch_probe(self, handler, count_batches: bool = False):
         def probe(_pad, info):
             buf = info.get_buffer()
             if buf is None:
                 return Gst.PadProbeReturn.OK
             batch = pyds.gst_buffer_get_nvds_batch_meta(hash(buf))
+            if count_batches:   # batched inference check: frames per nvinfer batch (/health pipeline.batch_*)
+                n = batch.num_frames_in_batch
+                self.stats["batches"] += 1
+                self.stats["batch_frames"] += n
+                self.stats["batch_full"] += n >= self.cfg.max_batch
             l_frame = batch.frame_meta_list
             while l_frame is not None:
                 fm = pyds.NvDsFrameMeta.cast(l_frame.data)
@@ -729,7 +735,12 @@ class LprPipeline:
                                                          osd_active=shown, osd_path=f"{sb.src.id}-osd",
                                                          raw_path=sb.src.id if sb.src.type in ("rtsp", "rtmp", "http", "hls") else None)
         return {"sources": {k: {kk: vv for kk, vv in v.items() if not kk.startswith("_")} for k, v in self.state.items()},
-                "pipeline": dict(self.stats), "worker": self.worker.stats_snapshot()}
+                "pipeline": dict(self.stats, max_batch=self.cfg.max_batch,
+                                 batch_frames_mean=round(self.stats["batch_frames"] / self.stats["batches"], 2)
+                                 if self.stats["batches"] else None,
+                                 batch_full_pct=round(100 * self.stats["batch_full"] / self.stats["batches"], 1)
+                                 if self.stats["batches"] else None),
+                "worker": self.worker.stats_snapshot()}
 
     def run(self) -> None:
         GLib.timeout_add(2000, self._health_tick)

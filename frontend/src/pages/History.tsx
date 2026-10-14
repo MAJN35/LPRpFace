@@ -75,7 +75,7 @@ export function History() {
             <label>{t("hist.to")}<input className="inset" type="datetime-local" value={draft.to} onChange={set("to")} /></label>
             <label>{t("hist.validity")}<select className="inset" value={draft.is_valid} onChange={set("is_valid")}><option value="">{t("hist.any")}</option><option value="true">{t("hist.valid")}</option><option value="false">{t("hist.invalid")}</option></select></label>
             <label>{t("hist.list")}<select className="inset" value={draft.list_status} onChange={set("list_status")}><option value="">{t("hist.any")}</option><option value="whitelist">{t("list.whitelist")}</option><option value="blocklist">{t("list.blocklist")}</option><option value="unknown">{t("list.unknown")}</option></select></label>
-            <label>{t("hist.model")}<select className="inset" value={draft.model_version} onChange={set("model_version")}><option value="">{t("hist.any")}</option><option>v1</option><option>v2</option></select></label>
+            <label>{t("hist.model")}<select className="inset" value={draft.model_version} onChange={set("model_version")}><option value="">{t("hist.any")}</option><option>v1</option><option>v2</option><option>v3m</option></select></label>
           </div>
         </details>
         <div className="row form-actions"><Btn type="submit" variant="primary" icon={Search} state={page.loading ? "busy" : "idle"}>{t("hist.search")}</Btn><Btn icon={Eraser} onClick={clear}>{t("hist.clear")}</Btn></div>

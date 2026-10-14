@@ -542,3 +542,29 @@ Format: date, decision, reason, alternatives, source.
 - **Finding:** the production event policy (2026-10-13) costs 7–11 points on the back-to-back test clips, because a
   track continues across a cut. A shorter track timeout with min-frames and plausibility kept is a candidate for a
   measured follow-up.
+
+## 2026-10-14: v3m in production; batching verified; camera disconnects
+
+- **Model:** production switched to v3m (YOLO12m) at the user's request (`MODEL_VERSION=v3m`, `BATCH_PROFILE=1,2,2`
+  in deploy/.env; compose defaults follow).
+  - The evaluation had v2 ahead on the 2-camera stream (see the entry above); the user chose v3m for speed.
+  - v2 stays selectable for rollback: `MODEL_VERSION=v2`, `BATCH_PROFILE=1,2,4`.
+- **Batching measured:** `/health` `pipeline.batch_frames_mean` / `batch_full_pct` now count the frames in every
+  nvinfer batch.
+  - With the two live cameras: 1.86–1.97 frames per batch, 86–97 % full batches, about 9 inferences/s.
+  - The v3m engine's profile max is 2: with 3–4 cameras the muxer forms batches of 2. A 1/2/4 engine (about 45 min
+    to build) would batch up to 4.
+- **Disconnects:**
+  - **Cause:** every TCP connection to both Hikvision cameras (192.168.4.42, 192.168.200.55, through router
+    192.168.6.5) is cut once a minute, at the same second. That covers the gateway's, DeepStream's, ffmpeg's in a
+    container, and ffmpeg's on the host network. ICMP has no loss and the Jetson has no periodic job, so the cause
+    is outside the Jetson: the router, firewall or VPN, or the cameras.
+  - **DeepStream:** reading through the gateway (restream) never recovered, because nvurisrcbin retried before the
+    gateway had reconnected ("Not found").
+  - **Rejected fix:** rebuilding the input at runtime crashed DeepStream 6.3 natively about 10 s after the
+    re-attach (restart every minute). Reverted.
+  - **Fix:** `LPR_RESTREAM=0`, cameras read directly. nvurisrcbin's own reconnect recovers in 1–2 s after each cut;
+    no stalls and no restarts in the watched minutes. Cameras that cannot serve a late joiner (the phone app) need
+    `LPR_RESTREAM=1`.
+  - **Browser:** the player retries quickly, keeps the last frame through short gaps, and shows "not available" only
+    after 8 s.

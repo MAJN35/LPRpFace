@@ -16,29 +16,38 @@ export function LiveVideo({ path, label, HlsImpl = Hls }: { path: string; label:
     if (!el) return;
     if (!HlsImpl.isSupported()) { setState("unsupported"); return; }
     let hls: Hls | null = null; let timer: number | undefined; let stopped = false;
+    let played = false; let outage: number | undefined;
     const start = () => {
       if (stopped) return;
-      setState("connecting");
+      if (!played) setState("connecting");          // after a gap the last frame stays on screen meanwhile
       hls = new HlsImpl({
         // The gateway may need several seconds before the first segments of a stream exist (detection stream at the
         // inference rate): generous timeouts instead of hls.js' 10 s defaults, which made browsers give up.
         lowLatencyMode: false, liveSyncDurationCount: 2, manifestLoadingTimeOut: 30000, manifestLoadingMaxRetry: 2,
         levelLoadingTimeOut: 30000, fragLoadingTimeOut: 30000,
+        // Camera connections on this site are cut once a minute (network); the gateway's stream is back after a few
+        // seconds. Retry playlists and segments quickly instead of failing.
+        manifestLoadingRetryDelay: 1000, levelLoadingMaxRetry: 8, levelLoadingRetryDelay: 1000,
+        fragLoadingMaxRetry: 8, fragLoadingRetryDelay: 1000,
         xhrSetup: (xhr) => { if (auth.token) xhr.setRequestHeader("Authorization", `Bearer ${auth.token}`); },
       });
       hls.on(HlsImpl.Events.MANIFEST_PARSED, () => { el.play().catch(() => {}); });
-      hls.on(HlsImpl.Events.FRAG_BUFFERED, () => setState("playing"));
+      hls.on(HlsImpl.Events.FRAG_BUFFERED, () => {
+        played = true; window.clearTimeout(outage); outage = undefined; setState("playing");
+      });
       hls.on(HlsImpl.Events.ERROR, (_e, data) => {
         if (!data.fatal) return;
         hls?.destroy(); hls = null;
-        setState("unavailable");
-        timer = window.setTimeout(start, 5000);
+        // a short gap keeps the last frame; "unavailable" only when the stream stays away for 8 s
+        if (!played) setState("unavailable");
+        else if (outage === undefined) outage = window.setTimeout(() => setState("unavailable"), 8000);
+        timer = window.setTimeout(start, played ? 1500 : 5000);
       });
       hls.loadSource(`/hls/${encodeURIComponent(path)}/index.m3u8`);
       hls.attachMedia(el);
     };
     start();
-    return () => { stopped = true; window.clearTimeout(timer); hls?.destroy(); };
+    return () => { stopped = true; window.clearTimeout(timer); window.clearTimeout(outage); hls?.destroy(); };
   }, [path, HlsImpl]);
   return (
     <div className="video-box inset">

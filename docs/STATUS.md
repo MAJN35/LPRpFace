@@ -252,3 +252,6 @@ ready to try.
     device (or deploy/certs/tls.crt installed as trusted).
 13. v3_26n: TensorRT 8.5 build hung at the attention block; retry with models/v3_26n/export_fixed (height/width pinned to 960).
 14. Event policy vs back-to-back test clips: a shorter track timeout (keeping min-frames/plausibility) is to be measured.
+15. Camera network: every TCP connection to the Hikvision cameras is cut once a minute (router 192.168.6.5 /
+    firewall / VPN or the cameras). Mitigated (direct reads, 1-2 s recovery); the cause needs the network owner.
+16. v3m engine profile is 1/2/2: build 1/2/4 if more than 2 cameras run together.

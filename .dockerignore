@@ -17,6 +17,14 @@
 !models/v2/SHA256SUMS
 !models/v1/export/*.json
 !models/v2/export/*.json
+!models/v3m/labels.txt
+!models/v3m/class_names.json
+!models/v3m/SHA256SUMS
+!models/v3m/export/*.json
+!models/v3_26n/labels.txt
+!models/v3_26n/class_names.json
+!models/v3_26n/SHA256SUMS
+!models/v3_26n/export/*.json
 **/__pycache__
 !backend/app/**
 !backend/migrations/**
